@@ -36,7 +36,7 @@ function getFloorStats() {
 
 $rooms = getRooms();
 $floorStats = getFloorStats();
-$siteName = getSetting('site_name') ?: '少丽出租房';
+$siteName = getSetting('site_name') ?: 'DSJIE.出租房';
 $sitePhone = getSetting('site_phone') ?: '13800138000';
 $siteAddress = getSetting('site_address') ?: 'XX市XX区XX路XX号';
 $bannerTitle = getSetting('banner_title') ?: $siteName;
@@ -45,7 +45,7 @@ $bannerBtnText = getSetting('banner_btn_text') ?: '查看房源';
 $bannerImg1 = getSetting('banner_img1') ?: '';
 $bannerImg2 = getSetting('banner_img2') ?: '';
 $aboutTitle = getSetting('about_title') ?: '关于我们';
-$aboutContent = getSetting('about_content') ?: '少丽出租房位于城市中心地带，交通便利，周边配套齐全。我们提供干净整洁的居住环境，让每一位租客都能感受到家的温暖。';
+$aboutContent = getSetting('about_content') ?: 'DSJIE.出租房位于城市中心地带，交通便利，周边配套齐全。我们提供干净整洁的居住环境，让每一位租客都能感受到家的温暖。';
 $aboutImgUrl = getSetting('about_img_url') ?: 'https://via.placeholder.com/600x400?text=Apartment';
 $mapApiKey = getSetting('map_api_key') ?: '';
 $mapSecurityCode = getSetting('map_security_code') ?: '';
