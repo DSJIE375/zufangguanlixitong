@@ -1,0 +1,673 @@
+/* 少丽出租房 - Apple简约黑白风格 */
+
+:root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --text-muted: #86868b;
+    --accent: #000000;
+    --border: #e5e5e7;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+}
+
+/* 覆盖Bootstrap颜色 */
+.text-primary { color: var(--text) !important; }
+.bg-primary { background-color: var(--text) !important; }
+.btn-primary { background: var(--accent); color: var(--card); border-color: var(--accent); }
+.btn-primary:hover { background: #333; }
+.btn-outline-primary { color: var(--accent); border-color: var(--border); }
+.btn-outline-primary:hover { background: var(--accent); color: var(--card); border-color: var(--accent); }
+
+/* 徽章颜色 */
+.badge.bg-success { background-color: var(--text) !important; color: var(--card) !important; }
+.badge.bg-danger { background-color: #555 !important; color: var(--card) !important; }
+.badge.bg-warning { background-color: #888 !important; color: var(--card) !important; }
+.badge.bg-secondary { background-color: #aaa !important; color: var(--card) !important; }
+.badge.bg-info { background-color: #999 !important; color: var(--card) !important; }
+.badge.bg-dark { background-color: var(--text) !important; color: var(--card) !important; }
+
+/* 自定义徽章 */
+.badge-available {
+    background-color: var(--text);
+    color: var(--card);
+}
+
+.badge-rented {
+    background-color: #888;
+    color: var(--card);
+}
+
+/* 导航栏 */
+.navbar {
+    background: var(--card) !important;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    box-shadow: none;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text) !important;
+}
+
+.nav-link {
+    color: var(--text-muted) !important;
+    font-weight: 500;
+    padding: 8px 16px !important;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.nav-link:hover {
+    color: var(--text) !important;
+    background: rgba(0,0,0,0.04);
+}
+
+.nav-link.active {
+    color: var(--text) !important;
+    background: rgba(0,0,0,0.06);
+}
+
+/* 按钮 */
+.btn {
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: var(--transition);
+    border: 1px solid var(--accent);
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.btn-dark {
+    background: var(--accent);
+    color: var(--card);
+    border-color: var(--accent);
+}
+
+.btn-dark:hover {
+    background: #333;
+}
+
+.btn-outline-dark {
+    color: var(--accent);
+    border-color: var(--border);
+}
+
+.btn-outline-dark:hover {
+    background: var(--accent);
+    color: var(--card);
+    border-color: var(--accent);
+}
+
+/* 卡片 */
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: none;
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+}
+
+.card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.card-header {
+    background: var(--text) !important;
+    color: var(--card) !important;
+    font-weight: 600;
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+    padding: 16px 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* 轮播图 */
+.hero-slide {
+    height: 500px;
+    background: linear-gradient(135deg, #1d1d1f 0%, #333 100%);
+    position: relative;
+}
+
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.2);
+}
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+    padding-top: 160px;
+}
+
+.hero-content h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.hero-content .lead {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+}
+
+/* 页面标题 */
+.page-header {
+    background: var(--text);
+    color: white;
+    padding: 50px 0;
+    margin-top: 57px;
+}
+
+.page-header h2 {
+    font-weight: 700;
+}
+
+/* 房间卡片 */
+.room-card {
+    border: 1px solid var(--border);
+}
+
+.room-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+}
+
+.room-card .card-header {
+    background: var(--text) !important;
+}
+
+/* 价格 */
+.price-tag {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* 房间详情 */
+.room-hero {
+    background: linear-gradient(135deg, #1d1d1f 0%, #333 100%);
+    color: white;
+    padding: 60px 0;
+    margin-top: 57px;
+}
+
+.room-hero h1 {
+    font-weight: 800;
+}
+
+/* 优势卡片 */
+.advantage-card {
+    text-align: center;
+    padding: 40px 25px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    transition: var(--transition);
+}
+
+.advantage-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.advantage-card i {
+    font-size: 2.5rem;
+    color: var(--accent);
+    margin-bottom: 16px;
+}
+
+.advantage-card h5 {
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.advantage-card p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* 流程卡片 */
+.process-card {
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.process-num {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--card);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 16px;
+}
+
+.process-card h5 {
+    font-weight: 700;
+}
+
+.process-card p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* 联系区域 */
+.contact-card .card-header {
+    background: var(--text) !important;
+}
+
+/* 页脚 */
+footer {
+    background: var(--text);
+    color: var(--card);
+    padding: 40px 0;
+}
+
+footer h5 {
+    font-weight: 700;
+}
+
+footer .text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* 表单 */
+.form-control, .form-select {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    transition: var(--transition);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* 表格 */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table th {
+    background: var(--text);
+    color: var(--card);
+    font-weight: 600;
+    border: none;
+    padding: 14px 16px;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.table-hover tbody tr:hover {
+    background: rgba(0,0,0,0.02);
+}
+
+/* 徽章 */
+.badge {
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+/* 搜索框 */
+.card .row.g-3 {
+    align-items: flex-end;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-state i {
+    font-size: 80px;
+    color: var(--border);
+}
+
+.empty-state p {
+    color: var(--text-muted);
+}
+
+/* 后台管理 */
+.sidebar {
+    min-height: calc(100vh - 57px);
+    background: var(--text);
+}
+
+.sidebar .nav-link {
+    color: rgba(255,255,255,0.6) !important;
+    padding: 12px 16px;
+    margin: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+
+.sidebar .nav-link:hover {
+    color: #fff !important;
+    background: rgba(255,255,255,0.1);
+}
+
+.sidebar .nav-link.active {
+    color: #fff !important;
+    background: rgba(255,255,255,0.15);
+}
+
+.sidebar .nav-link i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+.main-content {
+    padding: 25px;
+}
+
+/* 统计卡片 */
+.stat-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.stat-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.stat-card h6 {
+    color: var(--text-muted);
+}
+
+.stat-card h3 {
+    color: var(--text);
+}
+
+.stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: var(--text);
+}
+
+/* 快捷操作 */
+.quick-action {
+    display: block;
+    text-align: center;
+    padding: 24px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text);
+    transition: var(--transition);
+}
+
+.quick-action:hover {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--card);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.quick-action i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+/* 手机端菜单 */
+.sidebar-toggle {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1050;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--card);
+    border: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    font-size: 20px;
+    transition: var(--transition);
+}
+
+.sidebar-toggle:hover {
+    transform: scale(1.05);
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(4px);
+    z-index: 1040;
+}
+
+@media (max-width: 767.98px) {
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .sidebar {
+        position: fixed;
+        top: 57px;
+        left: -280px;
+        width: 280px;
+        z-index: 1045;
+        transition: left 0.3s ease;
+    }
+    
+    .sidebar.show {
+        left: 0;
+    }
+    
+    .sidebar-overlay.show {
+        display: block;
+    }
+    
+    .hero-slide {
+        height: 380px;
+    }
+    
+    .hero-content {
+        padding-top: 100px;
+    }
+    
+    .hero-content h1 {
+        font-size: 2rem;
+    }
+    
+    .page-header {
+        padding: 30px 0;
+    }
+    
+    .room-hero {
+        padding: 40px 0;
+    }
+    
+    .price-tag {
+        font-size: 1.5rem;
+    }
+    
+    .advantage-card {
+        padding: 24px 16px;
+    }
+    
+    .stat-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 1.1rem;
+    }
+}
+
+/* 楼层图标 - 堆叠层数效果 */
+.floor-icon {
+    position: relative;
+    width: 22px;
+    height: 30px;
+}
+
+.floor-layer {
+    position: absolute;
+    left: 0;
+    width: 18px;
+    height: 5px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 2px;
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* 其他样式 */
+.photo-grid img {
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.photo-grid img:hover {
+    transform: scale(1.02);
+}
+
+/* Lightbox */
+.lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.lightbox.active {
+    display: flex;
+}
+
+.lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    border-radius: var(--radius);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* 登录页 */
+.login-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+    max-width: 400px;
+    width: 100%;
+}
+
+.login-header {
+    background: var(--text);
+    color: var(--card);
+    padding: 40px 30px;
+    text-align: center;
+}
+
+.login-body {
+    padding: 30px;
+}
+
+.login-body .form-control:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+.btn-login {
+    background: var(--accent);
+    color: var(--card);
+    border: none;
+    padding: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    width: 100%;
+}
+
+.btn-login:hover {
+    background: #333;
+}
