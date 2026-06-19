@@ -1,14 +1,14 @@
 <?php
 /**
- * 少丽出租房 - 安装脚本
+ * 租房管理系统 - 安装脚本
  * 访问此文件可以自动创建数据库和初始数据
  * 安装完成后建议删除此文件
  */
 
 $host = 'localhost';
-$user = 'dsjzhufang';
-$pass = 'dsjzhufang';
-$dbname = 'dsjzhufang';
+$user = 'root';
+$pass = '';
+$dbname = 'rental_system';
 
 $message = '';
 $success = false;
@@ -79,7 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>安装 - 少丽出租房</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>安装 - 租房管理系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; }
@@ -91,7 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="container">
         <div class="card install-card">
             <div class="install-header">
-                <h2><i class="bi bi-building"></i> 少丽出租房</h2>
+                <img src="images/logo.svg" alt="Logo" height="48" style="margin-bottom: 15px;">
+                <h2>租房管理系统</h2>
                 <p class="mb-0">系统安装向导</p>
             </div>
             <div class="card-body p-4">

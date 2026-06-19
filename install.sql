@@ -1,7 +1,7 @@
--- 少丽出租房数据库初始化
+-- 租房管理系统数据库初始化
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS dsjzhufang DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE dsjzhufang;
+CREATE DATABASE IF NOT EXISTS rental_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE rental_system;
 
 -- 管理员表
 CREATE TABLE IF NOT EXISTS users (
@@ -127,7 +127,7 @@ INSERT INTO room_types (name, description, price, area) VALUES
 INSERT INTO settings (setting_key, setting_value, description) VALUES
 ('water_price', '3.50', '水费单价（元/吨）'),
 ('electricity_price', '0.60', '电费单价（元/度）'),
-('site_name', '少丽出租房', '网站名称'),
+('site_name', '我的出租房', '网站名称'),
 ('site_phone', '13800138000', '联系电话（多个用逗号分隔）'),
 ('site_address', 'XX市XX区XX路XX号', '公寓地址');
 
