@@ -12,7 +12,7 @@ function getSetting($key) {
     return '';
 }
 
-$siteName = getSetting('site_name') ?: '少丽出租房';
+$siteName = getSetting('site_name') ?: 'DSJIE.租房管理系统';
 $sitePhone = getSetting('site_phone') ?: '13800138000';
 $siteAddress = getSetting('site_address') ?: 'XX市XX区XX路XX号';
 
@@ -62,15 +62,30 @@ while ($p = $photos->fetch_assoc()) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
     <style>
-        .room-hero { background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%); color: white; padding: 40px 0; }
-        .photo-section { margin-bottom: 40px; }
-        .photo-section h5 { border-left: 4px solid #0d6efd; padding-left: 12px; margin-bottom: 20px; }
-        .photo-grid img { width: 100%; height: 250px; object-fit: cover; border-radius: 8px; cursor: pointer; transition: transform 0.3s; }
-        .photo-grid img:hover { transform: scale(1.02); }
-        .photo-grid .col-md-4 { margin-bottom: 20px; }
-        .info-label { color: #6c757d; font-size: 0.85rem; }
-        .info-value { font-size: 1.1rem; font-weight: 600; }
-        .price-tag { font-size: 2rem; color: #dc3545; font-weight: bold; }
+.room-hero { background: linear-gradient(135deg, #1d1d1f 0%, #333 100%); color: white; padding: 40px 0; margin-top: 56px; }
+
+/* 照片网格 */
+.photo-grid img { border-radius: 10px; transition: var(--transition); }
+
+.photo-grid img:hover { transform: scale(1.02); }
+
+.photo-section h5 { border-left: 4px solid #1d1d1f; padding-left: 12px; margin-bottom: 20px; }
+
+/* Lightbox */
+.lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); z-index: 9999; justify-content: center; align-items: center; }
+
+.lightbox.active { display: flex; }
+
+.lightbox img { max-width: 90%; max-height: 90%; border-radius: 10px; }
+
+.lightbox-close { position: absolute; top: 24px; right: 28px; color: white; font-size: 2.5rem; cursor: pointer; }
+
+/* 房间信息 */
+.info-label { color: #86868b; font-size: 0.85rem; }
+
+.info-value { font-size: 1.1rem; font-weight: 600; }
+
+.price-tag { font-size: 2rem; color: #1d1d1f; font-weight: bold; }
         
         /* Lightbox */
         .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
@@ -116,8 +131,8 @@ while ($p = $photos->fetch_assoc()) {
                     </p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                    <div class="price-tag">¥<?php echo number_format($room['type_price'], 2); ?></div>
-                    <small class="text-white-50">每月</small>
+                    <div style="font-size: 2rem; font-weight: bold; color: white;">¥<?php echo number_format($room['type_price'], 2); ?></div>
+                    <small style="color: rgba(255,255,255,0.6);">每月</small>
                 </div>
             </div>
         </div>

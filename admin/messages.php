@@ -7,7 +7,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -19,14 +19,17 @@ if (!isLoggedIn()) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] == 'delete') {
         $id = intval($_POST['id']);
-        $conn->query("DELETE FROM messages WHERE id=$id");
+        logAction('删除留言', "删除留言 ID: $id");
+        $conn->query("DELETE FROM messages WHERE id = $id");
         setFlash('success', '留言已删除');
+        redirect('messages.php');
     }
     if ($_POST['action'] == 'read') {
         $id = intval($_POST['id']);
         $conn->query("UPDATE messages SET is_read=1 WHERE id=$id");
     }
     if ($_POST['action'] == 'delete_all') {
+        logAction('清空留言', '清空所有留言');
         $conn->query("DELETE FROM messages");
         setFlash('success', '所有留言已清空');
     }
@@ -49,7 +52,7 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>

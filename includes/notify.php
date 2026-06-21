@@ -16,7 +16,7 @@ function sendEmailNotify($subject, $message) {
     $email = getNotifySetting('notify_email');
     if (empty($email)) return false;
     
-    $siteName = getNotifySetting('site_name') ?: '少丽出租房';
+    $siteName = getNotifySetting('site_name') ?: 'DSJIE.租房管理系统';
     
     $headers = "MIME-Version: 1.0\r\n";
     $headers .= "Content-type:text/html;charset=UTF-8\r\n";
@@ -56,7 +56,7 @@ function sendWechatNotify($title, $message) {
 
 // 发送留言通知
 function notifyNewMessage($name, $phone, $content) {
-    $siteName = getNotifySetting('site_name') ?: '少丽出租房';
+    $siteName = getNotifySetting('site_name') ?: 'DSJIE.租房管理系统';
     $enableEmail = getNotifySetting('notify_email_enable');
     $enableWechat = getNotifySetting('notify_wechat_enable');
     

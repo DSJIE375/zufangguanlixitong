@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $conn->query("UPDATE users SET password='$hashed', realname='$admin_name' WHERE username='$admin_user'");
         
         // 更新配置文件
-        $site_name = htmlspecialchars($_POST['site_name'] ?? '我的出租房');
+        $site_name = htmlspecialchars($_POST['site_name'] ?? 'DSJIE.租房管理系统');
         $config = "<?php\n";
         $config .= "define('DB_HOST', '$host');\n";
         $config .= "define('DB_USER', '$user');\n";
@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <h5 class="mb-3">网站设置</h5>
                     <div class="mb-3">
                         <label class="form-label">网站名称</label>
-                        <input type="text" name="site_name" class="form-control" value="我的出租房" placeholder="如：XX公寓、XX出租房">
+                        <input type="text" name="site_name" class="form-control" value="DSJIE.租房管理系统" placeholder="如：XX公寓、XX出租房">
                     </div>
                     
                     <button type="submit" class="btn btn-primary w-100 btn-lg">开始安装</button>

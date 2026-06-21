@@ -7,7 +7,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $photoPath = 'uploads/rooms/' . $newname;
                     $sql = "INSERT INTO room_photos (room_id, photo_path, photo_type, sort_order) VALUES ($room_id, '$photoPath', '$photo_type', $sort_order)";
                     if ($conn->query($sql)) {
+                        logAction('上传照片', "上传房间照片 ID: $room_id 类型: $photo_type");
                         setFlash('success', '照片上传成功');
                     } else {
                         setFlash('error', '保存失败: ' . $conn->error);
@@ -78,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             unlink(__DIR__ . '/../' . $photo['photo_path']);
         }
         $conn->query("DELETE FROM room_photos WHERE id=$id");
+        logAction('删除照片', "删除房间照片 ID: $id");
         setFlash('success', '照片已删除');
         redirect("photos.php?room_id=$rid");
     }
@@ -121,7 +123,7 @@ if ($room_id) {
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>

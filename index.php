@@ -94,6 +94,9 @@ $processList = array_filter(array_map('trim', explode(',', $processSteps)));
                         <a class="nav-link" href="#contact">联系我们</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="tenant_login.php" title="租客查看账单"><i class="bi bi-person me-1"></i>租客登录</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="admin/login.php" title="后台管理"><i class="bi bi-gear"></i></a>
                     </li>
                 </ul>

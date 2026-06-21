@@ -34,7 +34,7 @@ function getRooms($floor = null, $status = null) {
 $floor = isset($_GET['floor']) ? intval($_GET['floor']) : null;
 $status = isset($_GET['status']) ? $_GET['status'] : null;
 $rooms = getRooms($floor, $status);
-$siteName = getSetting('site_name') ?: '少丽出租房';
+$siteName = getSetting('site_name') ?: 'DSJIE.租房管理系统';
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">

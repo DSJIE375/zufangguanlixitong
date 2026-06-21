@@ -12,30 +12,55 @@
     
     // 分享账单功能
     function shareBill(billId, roomNumber, billMonth, tenantName) {
-        var currentPath = window.location.pathname;
-        var basePath = currentPath.substring(0, currentPath.lastIndexOf('/admin/') + 1);
-        var shareUrl = window.location.origin + basePath + 'bill_view.php?id=' + billId;
-        var shareText = tenantName + ' 的账单 - ' + roomNumber + ' ' + billMonth;
+        var hours = prompt('请输入分享链接有效期（小时）：\n\n留空或输入0 = 永久有效\n输入24 = 24小时后过期', '');
+        if (hours === null) return;
         
-        if (navigator.share) {
-            navigator.share({
-                title: shareText,
-                text: '请查看您的账单：' + roomNumber + ' ' + billMonth,
-                url: shareUrl
-            }).then(function() {
-                console.log('分享成功');
-            }).catch(function(err) {
-                console.log('分享取消');
-            });
-        } else {
-            var tempInput = document.createElement('input');
-            tempInput.value = shareUrl;
-            document.body.appendChild(tempInput);
-            tempInput.select();
+        var expireType = (hours === '' || hours === '0') ? 'permanent' : 'limited';
+        var expireHours = parseInt(hours) || 0;
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'create_share_link.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                var result = JSON.parse(xhr.responseText);
+                if (result.success) {
+                    // 构建完整URL
+                    var url = window.location.origin + '/share.php?token=' + result.token;
+                    
+                    // 尝试复制到剪贴板
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(url).then(function() {
+                            alert('分享链接已创建并复制到剪贴板！\n\n' + url);
+                        }).catch(function() {
+                            // 备用方案
+                            fallbackCopy(url);
+                        });
+                    } else {
+                        fallbackCopy(url);
+                    }
+                } else {
+                    alert('创建失败：' + result.error);
+                }
+            }
+        };
+        xhr.send('bill_id=' + billId + '&expire_type=' + expireType + '&expire_hours=' + expireHours);
+    }
+    
+    function fallbackCopy(text) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
             document.execCommand('copy');
-            document.body.removeChild(tempInput);
-            alert('账单链接已复制到剪贴板！\n\n' + shareUrl + '\n\n可以发送给租客查看。');
+            alert('分享链接已复制到剪贴板！\n\n' + text);
+        } catch(e) {
+            prompt('请手动复制链接：', text);
         }
+        document.body.removeChild(textarea);
     }
     
     // 合同页面：选择房间自动填充租金
@@ -49,6 +74,25 @@
         });
     }
     
+    // 账单页面：选择合同自动填充上月数据
+    var contractSelect = document.getElementById('contractSelect');
+    if (contractSelect) {
+        contractSelect.addEventListener('change', function() {
+            var contractId = this.value;
+            if (contractId) {
+                // 获取上月账单数据
+                fetch('get_last_bill.php?contract_id=' + contractId)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('water_start').value = data.water_end || 0;
+                            document.getElementById('elec_start').value = data.elec_end || 0;
+                        }
+                    });
+            }
+        });
+    }
+
     // 账单页面：计算预估费用
     function calcEstimates() {
         var wp = parseFloat(document.querySelector('input[name="water_price"]')?.value) || 0;

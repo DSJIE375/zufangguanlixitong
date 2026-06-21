@@ -1,67 +1,70 @@
 <?php
-require_once '../includes/database.php';
+require_once 'includes/database.php';
 
-if (!isLoggedIn()) {
-    redirect('login.php');
+function getSetting($key) {
+    global $conn;
+    $result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='$key'");
+    if ($result && $result->num_rows > 0) {
+        return $result->fetch_assoc()['setting_value'];
+    }
+    return '';
 }
 
-$bill_id = intval($_GET['id'] ?? 0);
-if (!$bill_id) {
-    redirect('bills.php');
+function getSiteName() {
+    global $conn;
+    $result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_name'");
+    if ($result && $result->num_rows > 0) {
+        return $result->fetch_assoc()['setting_value'];
+    }
+    return 'DSJIE.租房管理系统';
 }
 
-// 获取账单详情
-$bill = $conn->query("SELECT b.*, c.monthly_rent, c.deposit, r.room_number, r.floor,
-    t.name as tenant_name, t.phone as tenant_phone, t.id_card as tenant_idcard,
-    rt.name as type_name, rt.area
-    FROM bills b
-    LEFT JOIN contracts c ON b.contract_id = c.id
-    LEFT JOIN rooms r ON c.room_id = r.id
-    LEFT JOIN tenants t ON c.tenant_id = t.id
-    LEFT JOIN room_types rt ON r.room_type_id = rt.id
-    WHERE b.id = $bill_id")->fetch_assoc();
-
-if (!$bill) {
-    redirect('bills.php');
+$token = sanitize($_GET['token'] ?? '');
+if (!$token) {
+    header("Location: index.php");
+    exit;
 }
 
-$siteName = '';
-$result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_name'");
-if ($result->num_rows > 0) {
-    $siteName = $result->fetch_assoc()['setting_value'];
+// 验证token
+$shareLink = $conn->query("SELECT * FROM share_links WHERE token='$token' AND is_active=1")->fetch_assoc();
+
+if (!$shareLink) {
+    $error = '链接无效或已被禁用';
+} else {
+    // 检查是否过期
+    if ($shareLink['expire_at'] && strtotime($shareLink['expire_at']) < time()) {
+        $error = '链接已过期';
+    } else {
+        // 获取账单详情
+        $bill = $conn->query("SELECT b.*, c.monthly_rent, r.room_number, r.floor,
+            t.name as tenant_name, t.phone as tenant_phone,
+            rt.name as type_name, rt.area
+            FROM bills b
+            LEFT JOIN contracts c ON b.contract_id = c.id
+            LEFT JOIN rooms r ON c.room_id = r.id
+            LEFT JOIN tenants t ON c.tenant_id = t.id
+            LEFT JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.id = {$shareLink['bill_id']}")->fetch_assoc();
+    }
 }
 
-$sitePhone = '';
-$result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_phone'");
-if ($result->num_rows > 0) {
-    $sitePhone = $result->fetch_assoc()['setting_value'];
-}
-
-$siteAddress = '';
-$result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_address'");
-if ($result->num_rows > 0) {
-    $siteAddress = $result->fetch_assoc()['setting_value'];
-}
+$siteName = getSiteName();
+$siteAddress = getSetting('site_address') ?: '';
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>账单 - <?php echo $bill['room_number']; ?> - <?php echo $bill['bill_month']; ?></title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>账单 - <?php echo $siteName; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { background: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "Helvetica Neue", Arial, sans-serif; }
-        .bill-paper {
-            max-width: 800px;
-            margin: 20px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
+        .bill-paper { max-width: 800px; margin: 20px auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .bill-header { text-align: center; border-bottom: 2px solid #1d1d1f; padding-bottom: 20px; margin-bottom: 20px; }
         .bill-title { font-size: 24px; font-weight: 700; margin-bottom: 5px; color: #1d1d1f; }
         .bill-subtitle { font-size: 14px; color: #86868b; }
@@ -75,36 +78,35 @@ if ($result->num_rows > 0) {
         .bill-table td.text-right { text-align: right; }
         .bill-total { font-size: 20px; font-weight: 700; text-align: right; padding: 15px 0; border-top: 2px solid #1d1d1f; }
         .bill-footer { margin-top: 30px; font-size: 12px; color: #86868b; text-align: center; }
-        
-        @media print {
-            body { background: white; }
-            .bill-paper { box-shadow: none; margin: 0; padding: 20px; border-radius: 0; }
-            .no-print { display: none !important; }
-        }
+        .error-box { max-width: 500px; margin: 100px auto; text-align: center; }
+        .error-box i { font-size: 80px; color: #dc3545; }
     </style>
 </head>
 <body>
-    <!-- 操作按钮 -->
+    <?php if (isset($error)): ?>
+    <div class="error-box">
+        <i class="bi bi-exclamation-triangle"></i>
+        <h2 class="mt-4"><?php echo $error; ?></h2>
+        <p class="text-muted">请联系房东获取新的链接</p>
+        <a href="index.php" class="btn btn-dark mt-3">返回首页</a>
+    </div>
+    <?php else: ?>
     <div class="no-print" style="max-width: 800px; margin: 20px auto;">
         <div class="d-flex justify-content-between align-items-center">
-            <a href="bills.php" class="btn btn-outline-dark"><i class="bi bi-arrow-left me-1"></i> 返回列表</a>
+            <a href="javascript:history.back()" class="btn btn-outline-dark"><i class="bi bi-arrow-left me-1"></i> 返回</a>
             <div>
                 <button id="btnPDF" onclick="downloadPDF(this)" class="btn btn-outline-dark me-2"><i class="bi bi-file-earmark-pdf me-1"></i> 下载PDF</button>
                 <button id="btnImage" onclick="saveAsImage(this)" class="btn btn-outline-dark me-2"><i class="bi bi-image me-1"></i> 保存为图片</button>
-                <button onclick="window.print()" class="btn btn-dark"><i class="bi bi-printer me-1"></i> 打印账单</button>
             </div>
         </div>
     </div>
 
-    <!-- 账单内容 -->
     <div class="bill-paper" id="billContent">
-        <!-- 头部 -->
         <div class="bill-header">
             <div class="bill-title"><?php echo $siteName; ?></div>
             <div class="bill-subtitle">水电房租账单</div>
         </div>
 
-        <!-- 基本信息 -->
         <div class="bill-info">
             <table>
                 <tr>
@@ -128,7 +130,6 @@ if ($result->num_rows > 0) {
             </table>
         </div>
 
-        <!-- 费用明细 -->
         <table class="bill-table">
             <thead>
                 <tr>
@@ -174,35 +175,9 @@ if ($result->num_rows > 0) {
                     <td colspan="4">月租金</td>
                     <td class="text-right">¥<?php echo number_format($bill['rent_amount'], 2); ?></td>
                 </tr>
-                <tr>
-                    <td><strong>电费</strong></td>
-                    <td><?php echo number_format($bill['elec_start'], 2); ?> 度</td>
-                    <td><?php echo number_format($bill['elec_end'], 2); ?> 度</td>
-                    <td><?php echo number_format($bill['elec_usage'], 2); ?> 度</td>
-                    <td>¥<?php echo number_format($bill['elec_price'], 2); ?>/度</td>
-                    <td class="text-right">¥<?php echo number_format($bill['elec_amount'], 2); ?></td>
-                </tr>
-                <tr>
-                    <td><strong>垃圾费</strong></td>
-                    <td colspan="4">垃圾管理费</td>
-                    <td class="text-right">¥<?php echo number_format($bill['garbage_fee'], 2); ?></td>
-                </tr>
-                <?php if ($bill['other_fee'] > 0): ?>
-                <tr>
-                    <td><strong><?php echo $bill['other_fee_desc'] ?: '其他'; ?></strong></td>
-                    <td colspan="4"><?php echo $bill['other_fee_desc'] ?: '其他费用'; ?></td>
-                    <td class="text-right">¥<?php echo number_format($bill['other_fee'], 2); ?></td>
-                </tr>
-                <?php endif; ?>
-                <tr>
-                    <td><strong>房租</strong></td>
-                    <td colspan="4">月租金</td>
-                    <td class="text-right">¥<?php echo number_format($bill['rent_amount'], 2); ?></td>
-                </tr>
             </tbody>
         </table>
 
-        <!-- 费用说明 -->
         <div class="bill-info" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
             <h6 style="font-weight: bold; margin-bottom: 10px;">费用说明：</h6>
             <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #555;">
@@ -230,12 +205,10 @@ if ($result->num_rows > 0) {
             </div>
         </div>
 
-        <!-- 合计 -->
         <div class="bill-total">
-            应缴合计：<span style="color: #dc3545;">¥<?php echo number_format($bill['total_amount'], 2); ?></span>
+            应缴合计：<span style="color: #1d1d1f;">¥<?php echo number_format($bill['total_amount'], 2); ?></span>
         </div>
 
-        <!-- 缴费信息 -->
         <div class="bill-info" style="border-top: 1px dashed #ddd; padding-top: 15px;">
             <table>
                 <tr>
@@ -243,145 +216,68 @@ if ($result->num_rows > 0) {
                     <td><strong style="color: <?php echo $bill['status'] == 'paid' ? '#198754' : '#dc3545'; ?>;">
                         <?php echo $bill['status'] == 'paid' ? '已缴费' : '待缴费'; ?>
                     </strong></td>
-                    <?php if ($bill['status'] == 'paid'): ?>
-                    <td>缴费时间：</td>
-                    <td><?php echo $bill['paid_at']; ?></td>
-                    <?php endif; ?>
                 </tr>
             </table>
         </div>
 
-        <!-- 页脚 -->
         <div class="bill-footer">
-            <p>地址：<?php echo $siteAddress; ?> | 电话：<?php echo $sitePhone; ?></p>
+            <p><?php echo $siteAddress; ?></p>
             <p>如有疑问请联系房东，谢谢配合！</p>
         </div>
     </div>
 
     <script>
-    // 打印后自动关闭提示
-    window.onafterprint = function() {
-        if (confirm('账单已发送到打印机，是否返回列表？')) {
-            window.location.href = 'bills.php';
-        }
-    };
-
-    // 下载PDF
     function downloadPDF(btn) {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 生成中...';
-
         var element = document.getElementById('billContent');
-        
-        // 临时保存原始样式
         var origWidth = element.style.width;
         var origMinWidth = element.style.minWidth;
         var origTransform = element.style.transform;
-        
-        // 设置固定宽度用于截图
         element.style.width = '800px';
         element.style.minWidth = '800px';
         element.style.transform = 'none';
-        
         setTimeout(function() {
-            html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                width: 800,
-                windowWidth: 800
-            }).then(function(canvas) {
+            html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 800, windowWidth: 800 })
+            .then(function(canvas) {
                 var imgData = canvas.toDataURL('image/png');
-                var imgWidth = canvas.width;
-                var imgHeight = canvas.height;
-                
-                // A4纸尺寸
-                var pdfWidth = 210;
-                var pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-                
                 var pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                
-                var filename = '账单_<?php echo $bill["room_number"] . "_" . $bill["bill_month"] . "_" . $bill["tenant_name"] . "_" . $bill["tenant_phone"]; ?>.pdf';
-                pdf.save(filename);
-                
-                // 恢复原始样式
-                element.style.width = origWidth;
-                element.style.minWidth = origMinWidth;
-                element.style.transform = origTransform;
-                
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> 下载PDF';
-                alert('PDF已保存到下载文件夹');
-            }).catch(function(err) {
-                console.error(err);
+                var pdfHeight = (canvas.height * 210) / canvas.width;
+                pdf.addImage(imgData, 'PNG', 0, 0, 210, pdfHeight);
+                pdf.save('账单_<?php echo $bill["room_number"] . "_" . $bill["bill_month"] . "_" . $bill["tenant_name"] . "_" . $bill["tenant_phone"]; ?>.pdf');
                 element.style.width = origWidth;
                 element.style.minWidth = origMinWidth;
                 element.style.transform = origTransform;
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> 下载PDF';
-                alert('生成PDF失败，请重试');
+                alert('PDF已保存');
             });
         }, 100);
     }
-
-    // 保存为图片
     function saveAsImage(btn) {
-        var element = document.getElementById('billContent');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 生成中...';
-
-        // 临时保存原始样式
+        var element = document.getElementById('billContent');
         var origWidth = element.style.width;
         var origMinWidth = element.style.minWidth;
-        var origTransform = element.style.transform;
-        
-        // 设置固定宽度用于截图
         element.style.width = '800px';
         element.style.minWidth = '800px';
-        element.style.transform = 'none';
-        
         setTimeout(function() {
-            html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                width: 800,
-                windowWidth: 800
-            }).then(function(canvas) {
+            html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 800, windowWidth: 800 })
+            .then(function(canvas) {
                 var link = document.createElement('a');
                 link.download = '账单_<?php echo $bill["room_number"] . "_" . $bill["bill_month"] . "_" . $bill["tenant_name"] . "_" . $bill["tenant_phone"]; ?>.png';
                 link.href = canvas.toDataURL('image/png');
                 link.click();
-                
-                // 恢复原始样式
                 element.style.width = origWidth;
-                element.style.minWidth = origMinWidth;
-                element.style.transform = origTransform;
-                
+                element.style.minWidth = '';
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-image"></i> 保存为图片';
-                
-                alert('图片已保存到下载文件夹');
-            }).catch(function(err) {
-                element.style.width = origWidth;
-                element.style.minWidth = origMinWidth;
-                element.style.transform = origTransform;
-                alert('保存失败，请重试');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-image"></i> 保存为图片';
+                alert('图片已保存');
             });
         }, 100);
     }
-    
-    // 如果URL带save=1参数，自动执行保存
-    <?php if (isset($_GET['save'])): ?>
-    window.onload = function() {
-        setTimeout(function() {
-            saveAsImage();
-        }, 500);
-    };
-    <?php endif; ?>
     </script>
+    <?php endif; ?>
 </body>
 </html>
