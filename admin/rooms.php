@@ -7,7 +7,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 VALUES ($floor, '$room_number', $room_type_id, '$status', '$description')";
         
         if ($conn->query($sql)) {
+            logAction('添加房间', "添加房间 $room_number ({$floor}楼)");
             setFlash('success', '房间添加成功');
             redirect('rooms.php');
         } else {
@@ -58,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 WHERE id = $id";
         
         if ($conn->query($sql)) {
+            logAction('修改房间', "修改房间 $room_number ({$floor}楼)");
             setFlash('success', '房间更新成功');
             redirect('rooms.php');
         } else {
@@ -67,9 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($postAction == 'delete') {
         $id = intval($_POST['id']);
+        $room = $conn->query("SELECT room_number, floor FROM rooms WHERE id = $id")->fetch_assoc();
         $sql = "DELETE FROM rooms WHERE id = $id";
         
         if ($conn->query($sql)) {
+            logAction('删除房间', "删除房间 {$room['room_number']} ({$room['floor']}楼)");
             setFlash('success', '房间删除成功');
             redirect('rooms.php');
         } else {
@@ -124,7 +128,7 @@ if ($action == 'edit' && $id) {
     <!-- 顶部导航 -->
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>

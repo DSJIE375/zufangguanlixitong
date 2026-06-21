@@ -1,4 +1,4 @@
-// 少丽出租房 - 主要JavaScript
+// DSJIE.租房管理系统 - 主要JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化Bootstrap工具提示

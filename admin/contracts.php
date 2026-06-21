@@ -7,7 +7,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -34,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 VALUES ($room_id, $tenant_id, '$start_date', " . ($end_date ? "'$end_date'" : "NULL") . ", $monthly_rent, $deposit, '$notes')";
         
         if ($conn->query($sql)) {
+            $room = $conn->query("SELECT room_number FROM rooms WHERE id = $room_id")->fetch_assoc();
+            logAction('创建合同', "创建合同: {$room['room_number']}");
             $conn->query("UPDATE rooms SET status = 'rented' WHERE id = $room_id");
             setFlash('success', '合同创建成功');
             redirect('contracts.php');
@@ -112,6 +114,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     VALUES ({$hist['room_id']}, '{$hist['room_number']}', '{$hist['tname']}', '{$hist['tphone']}', '{$hist['tidcard']}', '{$hist['tgender']}', '{$hist['tcompany']}', {$hist['monthly_rent']}, {$hist['deposit']}, '{$hist['start_date']}', '$end_date', 'deleted', $totalPaid)");
             }
             
+            // 保存账单到历史记录
+            $bills = $conn->query("SELECT * FROM bills WHERE contract_id = $id");
+            while ($bill = $bills->fetch_assoc()) {
+                $conn->query("INSERT INTO bill_history (original_bill_id, contract_id, room_id, room_number, tenant_name, tenant_phone, bill_month, water_start, water_end, water_usage, water_price, water_amount, elec_start, elec_end, elec_usage, elec_price, elec_amount, rent_amount, garbage_fee, other_fee, other_fee_desc, total_amount, status, paid_at)
+                    VALUES ({$bill['id']}, {$bill['contract_id']}, {$hist['room_id']}, '{$hist['room_number']}', '{$hist['tname']}', '{$hist['tphone']}', '{$bill['bill_month']}', {$bill['water_start']}, {$bill['water_end']}, {$bill['water_usage']}, {$bill['water_price']}, {$bill['water_amount']}, {$bill['elec_start']}, {$bill['elec_end']}, {$bill['elec_usage']}, {$bill['elec_price']}, {$bill['elec_amount']}, {$bill['rent_amount']}, {$bill['garbage_fee']}, {$bill['other_fee']}, '{$bill['other_fee_desc']}', {$bill['total_amount']}, '{$bill['status']}', " . ($bill['paid_at'] ? "'{$bill['paid_at']}'" : "NULL") . ")");
+            }
+            
             $contract = $conn->query("SELECT room_id FROM contracts WHERE id = $id")->fetch_assoc();
             $sql = "DELETE FROM contracts WHERE id = $id";
             if ($conn->query($sql)) {
@@ -119,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $conn->query("UPDATE rooms SET status = 'available' WHERE id = " . $contract['room_id']);
                 }
                 setFlash('success', '合同已删除，历史记录已保存');
+                logAction('删除合同', "删除合同 ID: $id");
                 redirect('contracts.php');
             } else {
                 setFlash('error', '删除失败: ' . $conn->error);
@@ -188,7 +198,7 @@ if ($action == 'edit' && $editContract) {
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
@@ -275,6 +285,7 @@ if ($action == 'edit' && $editContract) {
                             </div>
                             <div class="card-footer bg-white">
                                 <a href="contracts.php?action=edit&id=<?php echo $contract['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i> 编辑</a>
+                                <a href="contract_template.php?id=<?php echo $contract['id']; ?>" class="btn btn-sm btn-outline-dark" target="_blank"><i class="bi bi-file-text"></i> 合同</a>
                                 <a href="bills.php?action=add&contract_id=<?php echo $contract['id']; ?>" class="btn btn-sm btn-outline-success"><i class="bi bi-receipt"></i> 录费</a>
                                 <?php if (!$hasUnpaid): ?>
                                 <form method="POST" style="display:inline;" data-confirm="确定要删除这个合同吗？">

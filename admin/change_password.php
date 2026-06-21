@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $sql = "UPDATE users SET password = '$hashed_password' WHERE id = $user_id";
     
     if ($conn->query($sql)) {
+        logAction('修改密码', '修改管理员密码');
         setFlash('success', '密码修改成功');
     } else {
         setFlash('error', '密码修改失败');

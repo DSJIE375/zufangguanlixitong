@@ -7,7 +7,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 VALUES ('$name', '$phone', '$id_card', '$gender', '$company')";
         
         if ($conn->query($sql)) {
+            logAction('添加租客', "添加租客 $name (电话: $phone)");
             setFlash('success', '租客添加成功');
             redirect('tenants.php');
         } else {
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 WHERE id = $id";
         
         if ($conn->query($sql)) {
+            logAction('修改租客', "修改租客 $name (电话: $phone)");
             setFlash('success', '租客信息更新成功');
             redirect('tenants.php');
         } else {
@@ -68,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $sql = "DELETE FROM tenants WHERE id = $id";
         
         if ($conn->query($sql)) {
+            logAction('删除租客', "删除租客 (ID: $id)");
             setFlash('success', '租客删除成功');
             redirect('tenants.php');
         } else {
@@ -104,7 +107,7 @@ if ($action == 'edit' && $id) {
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>

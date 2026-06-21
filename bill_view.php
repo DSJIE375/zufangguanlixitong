@@ -139,6 +139,18 @@ $siteAddress = getSetting('site_address') ?: '';
                     <td class="text-right">¥<?php echo number_format($bill['elec_amount'], 2); ?></td>
                 </tr>
                 <tr>
+                    <td><strong>垃圾费</strong></td>
+                    <td colspan="4">垃圾管理费</td>
+                    <td class="text-right">¥<?php echo number_format($bill['garbage_fee'], 2); ?></td>
+                </tr>
+                <?php if ($bill['other_fee'] > 0): ?>
+                <tr>
+                    <td><strong><?php echo $bill['other_fee_desc'] ?: '其他'; ?></strong></td>
+                    <td colspan="4"><?php echo $bill['other_fee_desc'] ?: '其他费用'; ?></td>
+                    <td class="text-right">¥<?php echo number_format($bill['other_fee'], 2); ?></td>
+                </tr>
+                <?php endif; ?>
+                <tr>
                     <td><strong>房租</strong></td>
                     <td colspan="4">月租金</td>
                     <td class="text-right">¥<?php echo number_format($bill['rent_amount'], 2); ?></td>
@@ -152,15 +164,25 @@ $siteAddress = getSetting('site_address') ?: '';
             <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #555;">
                 <li>水费：按实际用水量计算，单价 ¥<?php echo number_format($bill['water_price'], 2); ?>/吨</li>
                 <li>电费：按实际用电量计算，单价 ¥<?php echo number_format($bill['elec_price'], 2); ?>/度</li>
+                <li>垃圾管理费：每月固定 ¥<?php echo number_format($bill['garbage_fee'], 2); ?></li>
+                <?php if ($bill['other_fee'] > 0): ?>
+                <li><?php echo $bill['other_fee_desc'] ?: '其他费用' ?>：¥<?php echo number_format($bill['other_fee'], 2); ?></li>
+                <?php endif; ?>
                 <li>房租：按月固定收取，月租金 ¥<?php echo number_format($bill['rent_amount'], 2); ?></li>
             </ul>
             <hr style="margin: 10px 0;">
             <h6 style="font-weight: bold; margin-bottom: 10px;">本次账单计算明细：</h6>
             <div style="font-size: 13px; color: #333; background: white; padding: 10px; border-radius: 3px;">
-                <p style="margin-bottom: 5px;"><strong>水费：</strong><?php echo number_format($bill['water_end'], 2); ?>（本期）- <?php echo number_format($bill['water_start'], 2); ?>（上期）= <?php echo number_format($bill['water_usage'], 2); ?>吨 × ¥<?php echo number_format($bill['water_price'], 2); ?> = <strong style="color: #1d1d1f;">¥<?php echo number_format($bill['water_amount'], 2); ?></strong></p>
-                <p style="margin-bottom: 5px;"><strong>电费：</strong><?php echo number_format($bill['elec_end'], 2); ?>（本期）- <?php echo number_format($bill['elec_start'], 2); ?>（上期）= <?php echo number_format($bill['elec_usage'], 2); ?>度 × ¥<?php echo number_format($bill['elec_price'], 2); ?> = <strong style="color: #1d1d1f;">¥<?php echo number_format($bill['elec_amount'], 2); ?></strong></p>
-                <p style="margin-bottom: 0;"><strong>房租：</strong>¥<?php echo number_format($bill['rent_amount'], 2); ?></p>
-                <p style="margin-bottom: 0; margin-top: 8px; font-size: 15px;"><strong>合计：</strong><span style="color: #1d1d1f; font-size: 18px;">¥<?php echo number_format($bill['total_amount'], 2); ?></span> = 水费 ¥<?php echo number_format($bill['water_amount'], 2); ?> + 电费 ¥<?php echo number_format($bill['elec_amount'], 2); ?> + 房租 ¥<?php echo number_format($bill['rent_amount'], 2); ?></p>
+                <p style="margin-bottom: 5px;"><i class="bi bi-droplet" style="color: #0d6efd;"></i> <strong>水费：</strong><?php echo number_format($bill['water_end'], 2); ?>（本期）- <?php echo number_format($bill['water_start'], 2); ?>（上期）= <?php echo number_format($bill['water_usage'], 2); ?>吨 × ¥<?php echo number_format($bill['water_price'], 2); ?> = <strong>¥<?php echo number_format($bill['water_amount'], 2); ?></strong></p>
+                <p style="margin-bottom: 5px;"><i class="bi bi-lightning" style="color: #ffc107;"></i> <strong>电费：</strong><?php echo number_format($bill['elec_end'], 2); ?>（本期）- <?php echo number_format($bill['elec_start'], 2); ?>（上期）= <?php echo number_format($bill['elec_usage'], 2); ?>度 × ¥<?php echo number_format($bill['elec_price'], 2); ?> = <strong>¥<?php echo number_format($bill['elec_amount'], 2); ?></strong></p>
+                <p style="margin-bottom: 5px;"><i class="bi bi-trash" style="color: #6c757d;"></i> <strong>垃圾管理费：</strong>每月固定 = <strong>¥<?php echo number_format($bill['garbage_fee'], 2); ?></strong></p>
+                <?php if ($bill['other_fee'] > 0): ?>
+                <p style="margin-bottom: 5px;"><i class="bi bi-plus-circle" style="color: #198754;"></i> <strong><?php echo $bill['other_fee_desc'] ?: '其他费用' ?>：</strong>= <strong>¥<?php echo number_format($bill['other_fee'], 2); ?></strong></p>
+                <?php endif; ?>
+                <p style="margin-bottom: 5px;"><i class="bi bi-house" style="color: #0d6efd;"></i> <strong>房租：</strong>月租金 = <strong>¥<?php echo number_format($bill['rent_amount'], 2); ?></strong></p>
+                <hr style="margin: 8px 0;">
+                <p style="margin-bottom: 0; font-size: 15px;"><strong>合计：</strong><span style="font-size: 18px;">¥<?php echo number_format($bill['total_amount'], 2); ?></span></p>
+                <p style="margin-bottom: 0; font-size: 12px; color: #888;">= 水费 ¥<?php echo number_format($bill['water_amount'], 2); ?> + 电费 ¥<?php echo number_format($bill['elec_amount'], 2); ?> + 垃圾费 ¥<?php echo number_format($bill['garbage_fee'], 2); ?><?php if ($bill['other_fee'] > 0): ?> + <?php echo $bill['other_fee_desc'] ?: '其他' ?> ¥<?php echo number_format($bill['other_fee'], 2); ?><?php endif; ?> + 房租 ¥<?php echo number_format($bill['rent_amount'], 2); ?></p>
             </div>
         </div>
 

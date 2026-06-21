@@ -15,11 +15,11 @@ function getSetting($key) {
     return '';
 }
 
-$siteName = getSetting('site_name') ?: '我的出租房';
+$siteName = getSetting('site_name') ?: 'DSJIE.租房管理系统';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $fields = [
-        'water_price', 'electricity_price', 'site_name', 'site_phone', 'site_address',
+        'water_price', 'electricity_price', 'garbage_fee', 'site_name', 'site_phone', 'site_address',
         'banner_title', 'banner_subtitle', 'banner_btn_text',
         'about_title', 'about_content', 'about_img_url',
         'advantage_title', 'advantages',
@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     setFlash('success', '设置保存成功');
+    logAction('修改设置', '保存系统设置');
     redirect('settings.php');
 }
 
@@ -91,7 +92,7 @@ while ($row = $result->fetch_assoc()) {
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
@@ -130,7 +131,7 @@ while ($row = $result->fetch_assoc()) {
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label class="form-label">网站名称</label>
-                                        <input type="text" name="site_name" class="form-control" required value="<?php echo $settings['site_name'] ?? '少丽出租房'; ?>">
+                                        <input type="text" name="site_name" class="form-control" required value="<?php echo $settings['site_name'] ?? 'DSJIE.租房管理系统'; ?>">
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">联系电话（多个用逗号分隔）</label>
@@ -146,16 +147,21 @@ while ($row = $result->fetch_assoc()) {
                             <!-- 水电价格 -->
                             <div class="card shadow-sm mb-4">
                                 <div class="card-header bg-dark">
-                                    <h5 class="mb-0"><i class="bi bi-cash"></i> 水电价格</h5>
+                                    <h5 class="mb-0"><i class="bi bi-cash"></i> 费用设置</h5>
                                 </div>
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label class="form-label">水费单价（元/吨）</label>
                                         <input type="number" name="water_price" class="form-control" step="0.01" min="0" required value="<?php echo $settings['water_price'] ?? '3.50'; ?>">
                                     </div>
-                                    <div class="mb-0">
+                                    <div class="mb-3">
                                         <label class="form-label">电费单价（元/度）</label>
                                         <input type="number" name="electricity_price" class="form-control" step="0.01" min="0" required value="<?php echo $settings['electricity_price'] ?? '0.60'; ?>">
+                                    </div>
+                                    <div class="mb-0">
+                                        <label class="form-label">垃圾管理费（元/月）</label>
+                                        <input type="number" name="garbage_fee" class="form-control" step="0.01" min="0" required value="<?php echo $settings['garbage_fee'] ?? '3.00'; ?>">
+                                        <small class="text-muted">每月固定收取的垃圾管理费</small>
                                     </div>
                                 </div>
                             </div>
@@ -171,7 +177,7 @@ while ($row = $result->fetch_assoc()) {
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label class="form-label">横幅主标题</label>
-                                        <input type="text" name="banner_title" class="form-control" value="<?php echo $settings['banner_title'] ?? '少丽出租房'; ?>">
+                                        <input type="text" name="banner_title" class="form-control" value="<?php echo $settings['banner_title'] ?? 'DSJIE.租房管理系统'; ?>">
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">横幅副标题</label>
@@ -212,7 +218,7 @@ while ($row = $result->fetch_assoc()) {
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">内容</label>
-                                        <textarea name="about_content" class="form-control" rows="3"><?php echo $settings['about_content'] ?? '少丽出租房位于城市中心地带，交通便利，周边配套齐全。我们提供干净整洁的居住环境，让每一位租客都能感受到家的温暖。'; ?></textarea>
+                                        <textarea name="about_content" class="form-control" rows="3"><?php echo $settings['about_content'] ?? 'DSJIE.租房管理系统位于城市中心地带，交通便利，周边配套齐全。我们提供干净整洁的居住环境，让每一位租客都能感受到家的温暖。'; ?></textarea>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">图片链接</label>
@@ -357,10 +363,35 @@ while ($row = $result->fetch_assoc()) {
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <button type="submit" class="btn btn-dark btn-lg"><i class="bi bi-check-lg"></i> 保存所有设置</button>
-                            <a href="../index.php" class="btn btn-outline-secondary btn-lg ms-2" target="_blank"><i class="bi bi-eye"></i> 查看前台</a>
                         </div>
                     </div>
                 </form>
+
+                <!-- 修改密码 -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-key"></i> 修改密码</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="change_password.php">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">当前密码</label>
+                                    <input type="password" name="old_password" class="form-control" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">新密码</label>
+                                    <input type="password" name="new_password" class="form-control" required minlength="6">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">确认新密码</label>
+                                    <input type="password" name="confirm_password" class="form-control" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-dark"><i class="bi bi-shield-lock me-1"></i> 修改密码</button>
+                        </form>
+                    </div>
+                </div>
             </main>
         </div>
     </div>

@@ -89,3 +89,14 @@ function getCount($table, $where = '') {
     }
     return 0;
 }
+
+// 操作日志函数
+function logAction($action, $detail = '') {
+    global $conn;
+    if (!isset($_SESSION['user_id'])) return;
+    $user_id = $_SESSION['user_id'];
+    $username = $_SESSION['username'] ?? 'system';
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $detail = htmlspecialchars($detail);
+    $conn->query("INSERT INTO operation_logs (user_id, username, action, detail, ip_address) VALUES ($user_id, '$username', '$action', '$detail', '$ip')");
+}

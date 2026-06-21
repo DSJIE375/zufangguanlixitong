@@ -24,7 +24,7 @@ function getSiteName() {
     if ($result && $result->num_rows > 0) {
         return $result->fetch_assoc()['setting_value'];
     }
-    return '我的出租房';
+    return 'DSJIE.租房管理系统';
 }
 $siteName = getSiteName();
 
@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $water_end = floatval($_POST['water_end']);
         $elec_start = floatval($_POST['elec_start']);
         $elec_end = floatval($_POST['elec_end']);
+        $garbage_fee = floatval($_POST['garbage_fee'] ?? 0);
+        $other_fee = floatval($_POST['other_fee'] ?? 0);
+        $other_fee_desc = sanitize($_POST['other_fee_desc'] ?? '');
         
         $water_price = floatval(getSetting('water_price'));
         $elec_price = floatval(getSetting('electricity_price'));
@@ -51,14 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $contract = $conn->query("SELECT monthly_rent FROM contracts WHERE id = $contract_id")->fetch_assoc();
         $rent_amount = $contract ? $contract['monthly_rent'] : 0;
         
-        $total_amount = $rent_amount + $water_amount + $elec_amount;
+        $total_amount = $rent_amount + $water_amount + $elec_amount + $garbage_fee + $other_fee;
         
         $sql = "INSERT INTO bills (contract_id, bill_month, water_start, water_end, water_usage, water_price, water_amount,
-                elec_start, elec_end, elec_usage, elec_price, elec_amount, rent_amount, total_amount) 
+                elec_start, elec_end, elec_usage, elec_price, elec_amount, rent_amount, garbage_fee, other_fee, other_fee_desc, total_amount) 
                 VALUES ($contract_id, '$bill_month', $water_start, $water_end, $water_usage, $water_price, $water_amount,
-                $elec_start, $elec_end, $elec_usage, $elec_price, $elec_amount, $rent_amount, $total_amount)";
+                $elec_start, $elec_end, $elec_usage, $elec_price, $elec_amount, $rent_amount, $garbage_fee, $other_fee, '$other_fee_desc', $total_amount)";
         
         if ($conn->query($sql)) {
+            logAction('创建账单', "创建账单: $bill_month 金额: ¥$total_amount");
             setFlash('success', '账单创建成功');
             redirect('bills.php');
         } else {
@@ -72,6 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $water_end = floatval($_POST['water_end']);
         $elec_start = floatval($_POST['elec_start']);
         $elec_end = floatval($_POST['elec_end']);
+        $garbage_fee = floatval($_POST['garbage_fee'] ?? 0);
+        $other_fee = floatval($_POST['other_fee'] ?? 0);
+        $other_fee_desc = sanitize($_POST['other_fee_desc'] ?? '');
         $status = sanitize($_POST['status']);
         
         $water_price = floatval(getSetting('water_price'));
@@ -85,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         $bill = $conn->query("SELECT rent_amount FROM bills WHERE id = $id")->fetch_assoc();
         $rent_amount = $bill ? $bill['rent_amount'] : 0;
-        $total_amount = $rent_amount + $water_amount + $elec_amount;
+        $total_amount = $rent_amount + $water_amount + $elec_amount + $garbage_fee + $other_fee;
         
         $paid_at = ($status == 'paid') ? date('Y-m-d H:i:s') : 'NULL';
         
@@ -100,12 +107,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 elec_usage = $elec_usage,
                 elec_price = $elec_price,
                 elec_amount = $elec_amount,
+                garbage_fee = $garbage_fee,
+                other_fee = $other_fee,
+                other_fee_desc = '$other_fee_desc',
                 total_amount = $total_amount,
                 status = '$status',
                 paid_at = " . ($paid_at == 'NULL' ? 'NULL' : "'$paid_at'") . "
                 WHERE id = $id";
         
         if ($conn->query($sql)) {
+            logAction('修改账单', "修改账单: $bill_month");
             setFlash('success', '账单更新成功');
             redirect('bills.php');
         } else {
@@ -115,10 +126,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($postAction == 'delete') {
         $id = intval($_POST['id']);
-        $sql = "DELETE FROM bills WHERE id = $id";
         
+        // 检查账单是否已缴清
+        $bill = $conn->query("SELECT b.*, c.room_id, r.room_number, t.name as tenant_name, t.phone as tenant_phone
+            FROM bills b
+            JOIN contracts c ON b.contract_id = c.id
+            JOIN rooms r ON c.room_id = r.id
+            JOIN tenants t ON c.tenant_id = t.id
+            WHERE b.id = $id")->fetch_assoc();
+        
+        if (!$bill) {
+            setFlash('error', '账单不存在');
+            redirect('bills.php');
+        }
+        
+        if ($bill['status'] == 'unpaid') {
+            setFlash('error', '该账单未缴清，不能删除！请先标记为已缴费或编辑账单。');
+            redirect('bills.php');
+        }
+        
+        // 已缴清的账单，保存到历史记录
+        $conn->query("INSERT INTO bill_history (original_bill_id, contract_id, room_id, room_number, tenant_name, tenant_phone, bill_month, water_start, water_end, water_usage, water_price, water_amount, elec_start, elec_end, elec_usage, elec_price, elec_amount, rent_amount, garbage_fee, other_fee, other_fee_desc, total_amount, status, paid_at)
+            VALUES ({$bill['id']}, {$bill['contract_id']}, {$bill['room_id']}, '{$bill['room_number']}', '{$bill['tenant_name']}', '{$bill['tenant_phone']}', '{$bill['bill_month']}', {$bill['water_start']}, {$bill['water_end']}, {$bill['water_usage']}, {$bill['water_price']}, {$bill['water_amount']}, {$bill['elec_start']}, {$bill['elec_end']}, {$bill['elec_usage']}, {$bill['elec_price']}, {$bill['elec_amount']}, {$bill['rent_amount']}, {$bill['garbage_fee']}, {$bill['other_fee']}, '{$bill['other_fee_desc']}', {$bill['total_amount']}, '{$bill['status']}', " . ($bill['paid_at'] ? "'{$bill['paid_at']}'" : "NULL") . ")");
+        
+        // 删除账单
+        $sql = "DELETE FROM bills WHERE id = $id";
         if ($conn->query($sql)) {
-            setFlash('success', '账单删除成功');
+            logAction('删除账单', "删除账单: {$bill['bill_month']} 金额: ¥{$bill['total_amount']}");
+            setFlash('success', '账单已删除，已保存到历史记录');
             redirect('bills.php');
         } else {
             setFlash('error', '删除失败: ' . $conn->error);
@@ -147,7 +182,7 @@ $bills = $conn->query("SELECT b.*, c.monthly_rent, r.room_number, t.name as tena
                        JOIN rooms r ON c.room_id = r.id
                        JOIN tenants t ON c.tenant_id = t.id
                        WHERE $where
-                       ORDER BY b.bill_month DESC, r.room_number");
+                       ORDER BY b.status = 'unpaid' DESC, b.bill_month DESC, r.room_number");
 
 $contracts = $conn->query("SELECT c.*, r.room_number, t.name as tenant_name
                           FROM contracts c
@@ -177,7 +212,7 @@ $preselect_contract = $_GET['contract_id'] ?? '';
 <body>
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> <?php echo $siteName; ?></a>
+            <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
                 <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
@@ -236,11 +271,11 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                 </div>
 
                 <div class="row">
-                    <?php while ($bill = $bills->fetch_assoc()): ?>
+                    <?php $idx = 1; while ($bill = $bills->fetch_assoc()): ?>
                     <div class="col-lg-4 col-md-6 mb-4">
                         <div class="card h-100 shadow-sm">
-                            <div class="card-header <?php echo $bill['status'] == 'paid' ? 'bg-dark' : 'bg-dark'; ?> text-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0"><i class="bi bi-door-open"></i> <?php echo $bill['room_number']; ?></h5>
+                            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-door-open"></i> <?php echo $bill['room_number']; ?></h5>
                                 <span class="badge bg-white text-<?php echo $bill['status'] == 'paid' ? 'success' : 'danger'; ?>"><?php echo $bill['status'] == 'paid' ? '已缴' : '未缴'; ?></span>
                             </div>
                             <div class="card-body">
@@ -251,6 +286,10 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                                 <ul class="list-unstyled mb-0">
                                     <li class="mb-1"><i class="bi bi-droplet text-dark me-2"></i><strong>水费：</strong><?php echo number_format($bill['water_usage'], 1); ?>吨 = <span class="text-dark">¥<?php echo number_format($bill['water_amount'], 2); ?></span></li>
                                     <li class="mb-1"><i class="bi bi-lightning text-dark me-2"></i><strong>电费：</strong><?php echo number_format($bill['elec_usage'], 1); ?>度 = <span class="text-dark">¥<?php echo number_format($bill['elec_amount'], 2); ?></span></li>
+                                    <li class="mb-1"><i class="bi bi-trash text-dark me-2"></i><strong>垃圾费：</strong><span class="text-dark">¥<?php echo number_format($bill['garbage_fee'], 2); ?></span></li>
+                                    <?php if ($bill['other_fee'] > 0): ?>
+                                    <li class="mb-1"><i class="bi bi-plus-circle text-dark me-2"></i><strong><?php echo $bill['other_fee_desc'] ?: '其他'; ?>：</strong><span class="text-dark">¥<?php echo number_format($bill['other_fee'], 2); ?></span></li>
+                                    <?php endif; ?>
                                     <li class="mb-1"><i class="bi bi-house text-muted me-2"></i><strong>房租：</strong><span class="text-dark">¥<?php echo number_format($bill['rent_amount'], 2); ?></span></li>
                                     <li class="pt-2 border-top"><strong>合计：</strong><span class="text-dark fw-bold fs-5">¥<?php echo number_format($bill['total_amount'], 2); ?></span></li>
                                 </ul>
@@ -259,11 +298,15 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                                 <a href="bill_print.php?id=<?php echo $bill['id']; ?>" class="btn btn-sm btn-outline-dark" target="_blank"><i class="bi bi-eye"></i> 查看</a>
                                 <button type="button" class="btn btn-sm btn-outline-dark" onclick="shareBill(<?php echo $bill['id']; ?>, '<?php echo $bill['room_number']; ?>', '<?php echo $bill['bill_month']; ?>', '<?php echo $bill['tenant_name']; ?>')"><i class="bi bi-share"></i> 分享</button>
                                 <a href="bills.php?action=edit&id=<?php echo $bill['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i> 编辑</a>
+                                <?php if ($bill['status'] == 'paid'): ?>
                                 <form method="POST" style="display:inline;" data-confirm="确定要删除这个账单吗？">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $bill['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> 删除</button>
                                 </form>
+                                <?php else: ?>
+                                <span class="btn btn-sm btn-outline-secondary" title="未缴清，无法删除"><i class="bi bi-lock"></i> 锁定</span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -289,7 +332,7 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">选择合同 <span class="text-dark">*</span></label>
-                                            <select name="contract_id" class="form-select" required <?php echo $action == 'edit' ? 'disabled' : ''; ?>>
+                                            <select name="contract_id" class="form-select" required id="contractSelect" <?php echo $action == 'edit' ? 'disabled' : ''; ?>>
                                                 <option value="">请选择合同</option>
                                                 <?php while ($contract = $contracts->fetch_assoc()): ?>
                                                 <option value="<?php echo $contract['id']; ?>"
@@ -310,12 +353,12 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                                     <div class="row">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">上期读数（吨）</label>
-                                            <input type="number" name="water_start" class="form-control" step="0.01" required
+                                            <input type="number" name="water_start" class="form-control" step="0.01" required id="water_start"
                                                    value="<?php echo $action == 'edit' ? $editBill['water_start'] : 0; ?>">
                                         </div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">本期读数（吨）</label>
-                                            <input type="number" name="water_end" class="form-control" step="0.01" required
+                                            <input type="number" name="water_end" class="form-control" step="0.01" required id="water_end"
                                                    value="<?php echo $action == 'edit' ? $editBill['water_end'] : 0; ?>">
                                         </div>
                                         <div class="col-md-6 mb-3">
@@ -329,18 +372,42 @@ $preselect_contract = $_GET['contract_id'] ?? '';
                                     <div class="row">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">上期读数（度）</label>
-                                            <input type="number" name="elec_start" class="form-control" step="0.01" required
+                                            <input type="number" name="elec_start" class="form-control" step="0.01" required id="elec_start"
                                                    value="<?php echo $action == 'edit' ? $editBill['elec_start'] : 0; ?>">
                                         </div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">本期读数（度）</label>
-                                            <input type="number" name="elec_end" class="form-control" step="0.01" required
+                                            <input type="number" name="elec_end" class="form-control" step="0.01" required id="elec_end"
                                                    value="<?php echo $action == 'edit' ? $editBill['elec_end'] : 0; ?>">
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">电费单价</label>
                                             <input type="text" class="form-control" disabled
                                                    value="¥<?php echo number_format(floatval(getSetting('electricity_price')), 2); ?>/度 (在系统设置中修改)">
+                                        </div>
+                                    </div>
+                                    
+                                    <h6 class="mt-3 mb-3"><i class="bi bi-trash"></i> 垃圾管理费</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">垃圾管理费（元/月）</label>
+                                            <input type="number" name="garbage_fee" class="form-control" step="0.01" min="0"
+                                                   value="<?php echo $action == 'edit' ? $editBill['garbage_fee'] : number_format(floatval(getSetting('garbage_fee')), 2); ?>">
+                                            <small class="text-muted">当前默认：¥<?php echo number_format(floatval(getSetting('garbage_fee')), 2); ?>（可在系统设置中修改）</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <h6 class="mt-3 mb-3"><i class="bi bi-plus-circle"></i> 其他费用</h6>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">其他费用名称</label>
+                                            <input type="text" name="other_fee_desc" class="form-control" placeholder="如：维修费、清洁费等"
+                                                   value="<?php echo $action == 'edit' ? $editBill['other_fee_desc'] : ''; ?>">
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">其他费用金额（元）</label>
+                                            <input type="number" name="other_fee" class="form-control" step="0.01" min="0"
+                                                   value="<?php echo $action == 'edit' ? $editBill['other_fee'] : '0'; ?>">
                                         </div>
                                     </div>
                                     
