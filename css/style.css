@@ -555,21 +555,21 @@ footer .text-muted {
     }
 }
 
-/* 楼层图标 - 堆叠层数效果 */
-.floor-icon {
-    position: relative;
-    width: 22px;
-    height: 30px;
+/* 楼层图标 - 横排层数效果 */
+.floor-layers {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
-.floor-layer {
-    position: absolute;
-    left: 0;
-    width: 18px;
-    height: 5px;
-    background: rgba(255,255,255,0.9);
+.floor-dot {
+    width: 8px;
+    height: 8px;
+    background: rgba(255,255,255,0.8);
     border-radius: 2px;
-    border: 1px solid rgba(255,255,255,0.5);
+    display: inline-block;
+}
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 

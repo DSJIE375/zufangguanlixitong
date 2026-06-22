@@ -159,6 +159,14 @@ function formatDate($date) {
             </div>
         </div>
 
+        <!-- 签名 -->
+        <?php if (!empty($contract['signature'])): ?>
+        <div class="contract-section" style="margin-top: 30px;">
+            <h5>乙方签名</h5>
+            <img src="../<?php echo $contract['signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <?php endif; ?>
+
         <!-- 纸质合同 -->
         <?php if (!empty($contract['contract_file'])): ?>
         <div class="contract-section" style="margin-top: 30px;">

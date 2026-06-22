@@ -64,7 +64,7 @@ function formatDate($date) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { background: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "Microsoft YaHei", sans-serif; }
-        .contract-paper { max-width: 800px; margin: 20px auto; background: white; padding: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .contract-paper { max-width: 800px; margin: 20px auto; background: white; padding: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 16px; }
         .contract-title { text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 30px; }
         .contract-section { margin-bottom: 25px; }
         .contract-section h5 { font-size: 16px; font-weight: bold; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
@@ -72,19 +72,54 @@ function formatDate($date) {
         .contract-label { width: 100px; font-weight: 500; }
         .contract-value { flex: 1; }
         .contract-text { text-indent: 2em; line-height: 1.8; margin-bottom: 10px; }
-        .sign-area { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 20px; }
-        .sign-box { width: 250px; text-align: center; border-top: 1px solid #333; padding-top: 10px; }
-        @media print { body { background: white; } .contract-paper { box-shadow: none; margin: 0; padding: 30px; } .no-print { display: none !important; } }
+        .sign-area { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 20px; flex-wrap: wrap; gap: 20px; }
+        .sign-box { width: 230px; text-align: center; border-top: 1px solid #333; padding-top: 10px; }
+        .sign-canvas-container { width: 100%; max-width: 350px; margin: 10px auto; }
+        .sign-canvas { width: 100%; height: 120px; border: 2px solid #000; border-radius: 8px; cursor: crosshair; touch-action: none; }
+        /* 全屏签名板 */
+        .fullscreen-sign { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; flex-direction: column; }
+        .fullscreen-sign.active { display: flex; }
+        .sign-header { background: #1d1d1f; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .sign-canvas-area { flex: 1; padding: 20px; display: flex; align-items: center; justify-content: center; }
+        .sign-canvas-full { width: 95%; max-width: 700px; height: 250px; border: 2px solid #000; border-radius: 10px; cursor: crosshair; touch-action: none; background: white; }
+        .sign-hint { text-align: center; color: #86868b; font-size: 14px; margin-top: 10px; }
+        .sign-footer { padding: 15px 20px; background: #f5f5f7; display: flex; gap: 10px; justify-content: center; }
+        @media (orientation: landscape) and (max-height: 500px) {
+            .sign-canvas-full { height: 180px; }
+            .sign-header { padding: 10px 20px; }
+            .sign-footer { padding: 10px 20px; }
+        }
+        @media (orientation: landscape) and (max-height: 500px) {
+            .sign-canvas-full { height: 150px; }
+        }
     </style>
 </head>
 <body>
+    <!-- 全屏签名板 -->
+    <div class="fullscreen-sign" id="fullscreenSign">
+        <div class="sign-header">
+            <span><i class="bi bi-pencil"></i> 请在下方区域签名</span>
+            <button class="btn btn-sm btn-outline-light" onclick="cancelSign()">取消</button>
+        </div>
+        <div class="sign-canvas-area">
+            <div style="text-align: center;">
+                <canvas id="fullSignCanvas" class="sign-canvas-full"></canvas>
+                <div class="sign-hint">请使用手指或鼠标在上方签名</div>
+            </div>
+        </div>
+        <div class="sign-footer">
+            <button class="btn btn-outline-dark" onclick="clearFullSign()"><i class="bi bi-eraser"></i> 清除</button>
+            <button class="btn btn-dark" onclick="confirmFullSign()"><i class="bi bi-check-lg"></i> 确认签名</button>
+        </div>
+    </div>
+
     <div class="no-print" style="max-width: 800px; margin: 20px auto;">
         <div class="d-flex justify-content-between align-items-center">
             <a href="contracts.php" class="btn btn-outline-dark"><i class="bi bi-arrow-left me-1"></i> 返回</a>
             <div>
                 <button onclick="downloadPDF(this)" class="btn btn-outline-dark me-2"><i class="bi bi-file-earmark-pdf me-1"></i> 下载PDF</button>
                 <button onclick="window.print()" class="btn btn-dark me-2"><i class="bi bi-printer me-1"></i> 打印合同</button>
-                <label class="btn btn-outline-success"><i class="bi bi-upload me-1"></i> 上传纸质合同</label>
+                <label for="contractFile" class="btn btn-outline-success"><i class="bi bi-upload me-1"></i> 上传纸质合同</label>
                 <input type="file" id="contractFile" style="display:none;" accept="image/*,.pdf" onchange="uploadContract(this, <?php echo $contract_id; ?>)">
             </div>
         </div>
@@ -146,6 +181,14 @@ function formatDate($date) {
             <p class="contract-text mb-0"><strong>重要声明：</strong>本合同一式两份，甲乙双方各执一份。如电子版与纸质版不一致，<strong>以纸质版合同为准</strong>。</p>
         </div>
 
+        <!-- 已保存的签名 -->
+        <?php if (!empty($contract['signature'])): ?>
+        <div class="contract-section" style="margin-top: 30px;">
+            <h5>乙方签名</h5>
+            <img src="../<?php echo $contract['signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <?php endif; ?>
+
         <!-- 纸质合同 -->
         <?php if (!empty($contract['contract_file'])): ?>
         <div class="contract-section" style="margin-top: 30px;">
@@ -162,22 +205,22 @@ function formatDate($date) {
         </div>
         <?php endif; ?>
 
-        <div class="sign-area">
+            <div class="sign-area">
             <div class="sign-box">
                 <p>甲方（签章）</p>
-                <div id="ownerSignArea" style="height: 80px; width: 230px; border: 1px dashed #ccc; margin: 10px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="autoSignOwner()">
+                <div id="ownerSignArea" style="height: 80px; width: 100%; max-width: 230px; border: 1px dashed #ccc; margin: 10px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="autoSignOwner()">
                     <span class="text-muted small">点击自动签名</span>
                 </div>
                 <p class="text-muted small"><?php echo $siteName; ?></p>
-                <p class="text-muted small">日期：______年______月______日</p>
+                <p class="small"><input type="text" class="form-control form-control-sm text-center" style="width: 200px; margin: 0 auto;" value="<?php echo date('Y年m月d日'); ?>" id="ownerDate"></p>
             </div>
             <div class="sign-box">
                 <p>乙方（签章）</p>
-                <div id="tenantSignArea" style="height: 80px; width: 230px; border: 1px dashed #ccc; margin: 10px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="signTenant()">
+                <div id="tenantSignArea" style="height: 80px; width: 100%; max-width: 230px; border: 1px dashed #ccc; margin: 10px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="startTenantSign()">
                     <span class="text-muted small">点击签名</span>
                 </div>
                 <p class="text-muted small"><?php echo $contract['tenant_name']; ?></p>
-                <p class="text-muted small">日期：______年______月______日</p>
+                <p class="small"><input type="text" class="form-control form-control-sm text-center" style="width: 200px; margin: 0 auto;" value="<?php echo date('Y年m月d日'); ?>" id="tenantDate"></p>
             </div>
         </div>
     </div>
@@ -186,15 +229,128 @@ function formatDate($date) {
     // 自动签名（甲方）
     function autoSignOwner() {
         var area = document.getElementById('ownerSignArea');
-        area.innerHTML = '<canvas id="ownerCanvas" width="220" height="70" style="border: 1px solid #ddd;"></canvas>';
+        area.innerHTML = '<canvas id="ownerCanvas" width="220" height="70" style="border: 1px solid #ddd; width: 100%; max-width: 230px;"></canvas>';
         var canvas = document.getElementById('ownerCanvas');
         var ctx = canvas.getContext('2d');
-        ctx.font = '28px 楷体';
+        ctx.font = '24px 楷体';
         ctx.fillStyle = '#000';
         ctx.fillText('<?php echo $siteName; ?>', 10, 45);
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1;
         ctx.strokeRect(0, 0, 220, 70);
+    }
+    
+    // 全屏签名相关
+    var currentSignType = '';
+    var fullCanvas, fullCtx, fullDrawing = false;
+    
+    function startTenantSign() {
+        currentSignType = 'tenant';
+        document.getElementById('fullscreenSign').classList.add('active');
+        initFullCanvas();
+    }
+    
+    function initFullCanvas() {
+        fullCanvas = document.getElementById('fullSignCanvas');
+        fullCtx = fullCanvas.getContext('2d');
+        fullCanvas.width = fullCanvas.offsetWidth * 2;
+        fullCanvas.height = fullCanvas.offsetHeight * 2;
+        fullCtx.scale(2, 2);
+        fullCtx.strokeStyle = '#000';
+        fullCtx.lineWidth = 3;
+        fullCtx.lineCap = 'round';
+        fullCtx.lineJoin = 'round';
+        fullDrawing = false;
+        
+        // 缓存rect避免重复计算
+        var cachedRect = null;
+        
+        function updateRect() {
+            cachedRect = fullCanvas.getBoundingClientRect();
+        }
+        
+        // 鼠标事件
+        fullCanvas.addEventListener('mousedown', function(e) {
+            fullDrawing = true;
+            updateRect();
+            fullCtx.beginPath();
+            fullCtx.moveTo(e.clientX - cachedRect.left, e.clientY - cachedRect.top);
+        });
+        fullCanvas.addEventListener('mousemove', function(e) {
+            if (fullDrawing) {
+                updateRect();
+                fullCtx.lineTo(e.clientX - cachedRect.left, e.clientY - cachedRect.top);
+                fullCtx.stroke();
+            }
+        });
+        fullCanvas.addEventListener('mouseup', function() { fullDrawing = false; });
+        fullCanvas.addEventListener('mouseleave', function() { fullDrawing = false; });
+        
+        // 触摸事件
+        fullCanvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            fullDrawing = true;
+            updateRect();
+            var touch = e.touches[0];
+            fullCtx.beginPath();
+            fullCtx.moveTo(touch.clientX - cachedRect.left, touch.clientY - cachedRect.top);
+        }, { passive: false });
+        
+        fullCanvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            if (fullDrawing) {
+                updateRect();
+                var touch = e.touches[0];
+                fullCtx.lineTo(touch.clientX - cachedRect.left, touch.clientY - cachedRect.top);
+                fullCtx.stroke();
+            }
+        }, { passive: false });
+        
+        fullCanvas.addEventListener('touchend', function() { fullDrawing = false; });
+    }
+    
+    function clearFullSign() {
+        if (fullCanvas && fullCtx) {
+            fullCtx.clearRect(0, 0, fullCanvas.width, fullCanvas.height);
+        }
+    }
+    
+    function confirmFullSign() {
+        if (fullCanvas) {
+            var dataUrl = fullCanvas.toDataURL('image/png');
+            var area = document.getElementById('tenantSignArea');
+            
+            // 显示签名图片
+            area.innerHTML = '<img src="' + dataUrl + '" style="height: 80px; width: 100%; max-width: 230px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer;" onclick="startTenantSign()">' +
+                '<input type="hidden" id="tenantSignData" value="' + dataUrl + '">';
+            
+            // 保存到数据库
+            var contractId = <?php echo $contract_id; ?>;
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', 'save_signature.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    var result = JSON.parse(xhr.responseText);
+                    if (result.success) {
+                        alert('签名已保存！');
+                    }
+                }
+            };
+            xhr.send('action=save_signature&contract_id=' + contractId + '&signature_data=' + encodeURIComponent(dataUrl));
+        }
+        closeFullSign();
+    }
+    
+    function cancelSign() {
+        closeFullSign();
+    }
+    
+    function closeFullSign() {
+        document.getElementById('fullscreenSign').classList.remove('active');
+        if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock().catch(function() {});
+        }
     }
     
     // 手动签名（乙方）

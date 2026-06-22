@@ -1,0 +1,22 @@
+-- 添加首页内容设置
+INSERT INTO settings (setting_key, setting_value, description) VALUES
+('banner_title', '少丽出租房', '首页横幅标题'),
+('banner_subtitle', '温馨舒适 · 安全便捷 · 拎包入住', '首页横幅副标题'),
+('banner_btn_text', '查看房源', '首页横幅按钮文字'),
+('banner_img1', '', '轮播图1'),
+('banner_img2', '', '轮播图2'),
+('about_title', '关于我们', '关于我们标题'),
+('about_content', '少丽出租房位于城市中心地带，交通便利，周边配套齐全。我们提供干净整洁的居住环境，让每一位租客都能感受到家的温暖。', '关于我们内容'),
+('about_icons', 'bi-geo-alt,bi-wifi,bi-thermometer-snow,bi-shield-check', '关于我们图标'),
+('about_labels', '位置,网络,空调,安全', '关于我们图标标题'),
+('about_texts', '交通便利,免费WiFi,冷暖空调,门禁系统', '关于我们图标描述'),
+('about_img_url', 'https://via.placeholder.com/600x400?text=Apartment', '关于我们图片链接'),
+('advantage_title', '租房优势', '租房优势标题'),
+('advantages', '拎包入住|配备基本家具家电，拎包即可入住,价格实惠|月租便宜，水电费透明计算,交通便利|靠近公交地铁，出行方便,安全可靠|智能门禁，24小时监控', '租房优势（格式：标题|描述，多条用逗号分隔）'),
+('process_title', '租房流程', '租房流程标题'),
+('process_steps', '在线看房|浏览房源，选择心仪房间,实地看房|预约实地看房，确认环境,签订合同|确认入住，签订租赁合同,正式入住|缴纳费用，开始新生活', '租房流程（格式：标题|描述，多条用逗号分隔）'),
+('map_api_key', '', '高德地图API Key'),
+('map_security_code', '', '高德地图安全密钥'),
+('map_lng', '108.370671', '地图经度'),
+('map_lat', '22.824436', '地图纬度'),
+('map_address', 'XX市XX区XX路XX号', '地图显示地址');

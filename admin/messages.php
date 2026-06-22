@@ -36,7 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     redirect('messages.php');
 }
 
-$messages = $conn->query("SELECT * FROM messages ORDER BY created_at DESC");
+// 搜索条件
+$where = "1=1";
+if (!empty($_GET['search'])) {
+    $search = sanitize($_GET['search']);
+    $where .= " AND (name LIKE '%$search%' OR phone LIKE '%$search%' OR content LIKE '%$search%')";
+}
+
+$messages = $conn->query("SELECT * FROM messages WHERE $where ORDER BY created_at DESC");
 $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=0")->fetch_assoc()['cnt'];
 ?>
 <!DOCTYPE html>
@@ -83,6 +90,21 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
                         <input type="hidden" name="action" value="delete_all">
                         <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i> 清空所有</button>
                     </form>
+                </div>
+
+                <!-- 搜索 -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <form method="GET" class="row g-3">
+                            <div class="col-md-6">
+                                <input type="text" name="search" class="form-control" placeholder="搜索姓名、电话或内容..." value="<?php echo $_GET['search'] ?? ''; ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-dark me-2"><i class="bi bi-search"></i> 搜索</button>
+                                <a href="messages.php" class="btn btn-outline-dark">重置</a>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <?php if ($messages->num_rows > 0): ?>

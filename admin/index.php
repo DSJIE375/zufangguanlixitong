@@ -233,6 +233,52 @@ $stats = getStats();
                     </div>
                 </div>
 
+                <!-- 房态看板 -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-grid me-2"></i>房态看板</h5>
+                        <small class="text-muted">点击房间查看详情</small>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        $allRooms = $conn->query("SELECT r.*, rt.name as type_name, rt.price as type_price,
+                            (SELECT t.name FROM contracts c JOIN tenants t ON c.tenant_id = t.id WHERE c.room_id = r.id AND c.status = 'active' LIMIT 1) as tenant_name
+                            FROM rooms r 
+                            LEFT JOIN room_types rt ON r.room_type_id = rt.id 
+                            ORDER BY r.floor, r.room_number");
+                        $currentFloor = 0;
+                        while ($room = $allRooms->fetch_assoc()):
+                            if ($room['floor'] != $currentFloor):
+                                if ($currentFloor > 0) echo '</div></div>';
+                                $currentFloor = $room['floor'];
+                                echo '<div class="mb-4">';
+                                echo '<div class="d-flex justify-content-between align-items-center mb-2">';
+                                echo '<div class="fw-bold" style="font-size: 0.9rem; color: #86868b;">' . $currentFloor . '楼</div>';
+                                echo '<small class="text-muted">' . $room['type_name'] . ' ¥' . number_format($room['type_price'], 0) . '/月</small>';
+                                echo '</div>';
+                                echo '<div class="d-flex flex-wrap gap-2">';
+                            endif;
+                        ?>
+                            <a href="rooms.php?action=view&id=<?php echo $room['id']; ?>" 
+                               class="d-inline-flex flex-column align-items-center text-decoration-none p-2 rounded"
+                               style="background: <?php echo $room['status'] == 'available' ? '#1d1d1f' : '#e5e5e7'; ?>; 
+                                      color: <?php echo $room['status'] == 'available' ? '#fff' : '#86868b'; ?>; 
+                                      min-width: 80px; transition: all 0.2s;"
+                               title="<?php echo $room['room_number']; ?>
+<?php echo $room['type_name']; ?>
+¥<?php echo number_format($room['type_price'], 0); ?>/月
+<?php echo $room['status'] == 'available' ? '可租' : '已租'; ?>
+<?php if ($room['tenant_name']): ?>
+租客: <?php echo $room['tenant_name']; ?>
+<?php endif; ?>">
+                                <span style="font-weight: 600; font-size: 0.9rem;"><?php echo $room['room_number']; ?></span>
+                                <small style="font-size: 0.7rem; opacity: 0.7;"><?php echo $room['status'] == 'available' ? '可租' : '已租'; ?></small>
+                            </a>
+                        <?php endwhile; ?>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 快捷操作 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">

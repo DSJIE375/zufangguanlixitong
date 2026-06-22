@@ -83,9 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <title>安装 - 租房管理系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; }
+        body { background: #f5f5f7; min-height: 100vh; display: flex; align-items: center; }
         .install-card { max-width: 500px; margin: 0 auto; border: none; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        .install-header { background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%); color: white; padding: 30px; border-radius: 15px 15px 0 0; text-align: center; }
+        .install-header { background: #1d1d1f; color: white; padding: 30px; border-radius: 15px 15px 0 0; text-align: center; }
     </style>
 </head>
 <body>
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <input type="text" name="site_name" class="form-control" value="DSJIE.租房管理系统" placeholder="如：XX公寓、XX出租房">
                     </div>
                     
-                    <button type="submit" class="btn btn-primary w-100 btn-lg">开始安装</button>
+                    <button type="submit" class="btn btn-dark w-100 btn-lg">开始安装</button>
                 </form>
                 <?php endif; ?>
             </div>

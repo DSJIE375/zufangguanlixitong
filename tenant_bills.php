@@ -153,7 +153,7 @@ $siteAddress = getSetting('site_address') ?: '';
             <div class="col-md-4">
                 <div class="bill-card text-center">
                     <small class="text-muted">账单总数</small>
-                    <h3 class="text-primary mb-0"><?php echo ($currentBills ? $currentBills->num_rows : 0) + ($billHistory ? $billHistory->num_rows : 0); ?> 张</h3>
+                    <h3 class="mb-0"><?php echo ($currentBills ? $currentBills->num_rows : 0) + ($billHistory ? $billHistory->num_rows : 0); ?> 张</h3>
                 </div>
             </div>
         </div>

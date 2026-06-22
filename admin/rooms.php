@@ -195,50 +195,39 @@ if ($action == 'edit' && $id) {
                     </div>
                 </div>
 
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>房间号</th>
-                                        <th>楼层</th>
-                                        <th>类型</th>
-                                        <th>月租</th>
-                                        <th>状态</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($room = $rooms->fetch_assoc()): ?>
-                                    <tr>
-                                        <td><strong><?php echo $room['room_number']; ?></strong></td>
-                                        <td><?php echo $room['floor']; ?>楼</td>
-                                        <td><?php echo $room['type_name']; ?></td>
-                                        <td>¥<?php echo number_format($room['type_price'], 2); ?></td>
-                                        <td>
-                                            <span class="badge <?php echo $room['status'] == 'available' ? 'badge-available' : 'badge-rented'; ?>">
-                                                <?php echo $room['status'] == 'available' ? '可租' : '已租'; ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a href="rooms.php?action=view&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-info" title="查看详情">
-                                                <i class="bi bi-eye"></i> 详情
-                                            </a>
-                                            <a href="rooms.php?action=edit&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-dark">
-                                                <i class="bi bi-pencil"></i> 编辑
-                                            </a>
-                                            <form method="POST" style="display:inline;" data-confirm="确定要删除这个房间吗？">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="id" value="<?php echo $room['id']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                                    <i class="bi bi-trash"></i> 删除
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
+                <div class="row">
+                    <?php 
+                    $rooms->data_seek(0);
+                    $idx = 1;
+                    while ($room = $rooms->fetch_assoc()): ?>
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-door-open"></i> <?php echo $room['room_number']; ?></h5>
+                                <span class="badge <?php echo $room['status'] == 'available' ? 'bg-dark' : 'bg-secondary'; ?>">
+                                    <?php echo $room['status'] == 'available' ? '可租' : '已租'; ?>
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-1"><i class="bi bi-layers"></i> <strong>楼层：</strong><?php echo $room['floor']; ?>楼</li>
+                                    <li class="mb-1"><i class="bi bi-tag"></i> <strong>类型：</strong><?php echo $room['type_name']; ?></li>
+                                    <li class="mb-1"><i class="bi bi-cash"></i> <strong>月租：</strong>¥<?php echo number_format($room['type_price'], 2); ?></li>
+                                </ul>
+                            </div>
+                            <div class="card-footer bg-white">
+                                <a href="rooms.php?action=view&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-eye"></i> 详情</a>
+                                <a href="rooms.php?action=edit&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i> 编辑</a>
+                                <form method="POST" style="display:inline;" data-confirm="确定要删除这个房间吗？">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="<?php echo $room['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> 删除</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
                             </table>
                         </div>
                     </div>

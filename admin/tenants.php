@@ -27,9 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $id_card = sanitize($_POST['id_card'] ?? '');
         $gender = sanitize($_POST['gender'] ?? '');
         $company = sanitize($_POST['company'] ?? '');
+        $emergency_name = sanitize($_POST['emergency_name'] ?? '');
+        $emergency_phone = sanitize($_POST['emergency_phone'] ?? '');
         
-        $sql = "INSERT INTO tenants (name, phone, id_card, gender, company) 
-                VALUES ('$name', '$phone', '$id_card', '$gender', '$company')";
+        $sql = "INSERT INTO tenants (name, phone, id_card, gender, company, emergency_name, emergency_phone) 
+                VALUES ('$name', '$phone', '$id_card', '$gender', '$company', '$emergency_name', '$emergency_phone')";
         
         if ($conn->query($sql)) {
             logAction('添加租客', "添加租客 $name (电话: $phone)");
@@ -47,13 +49,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $id_card = sanitize($_POST['id_card'] ?? '');
         $gender = sanitize($_POST['gender'] ?? '');
         $company = sanitize($_POST['company'] ?? '');
+        $emergency_name = sanitize($_POST['emergency_name'] ?? '');
+        $emergency_phone = sanitize($_POST['emergency_phone'] ?? '');
         
         $sql = "UPDATE tenants SET 
                 name = '$name',
                 phone = '$phone',
                 id_card = '$id_card',
                 gender = '$gender',
-                company = '$company'
+                company = '$company',
+                emergency_name = '$emergency_name',
+                emergency_phone = '$emergency_phone'
                 WHERE id = $id";
         
         if ($conn->query($sql)) {
@@ -229,6 +235,19 @@ if ($action == 'edit' && $id) {
                                     <label class="form-label">公司/单位</label>
                                     <input type="text" name="company" class="form-control"
                                            value="<?php echo $action == 'edit' ? $editTenant['company'] : ''; ?>">
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">紧急联系人</label>
+                                    <input type="text" name="emergency_name" class="form-control"
+                                           value="<?php echo $action == 'edit' ? $editTenant['emergency_name'] ?? '' : ''; ?>">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">紧急联系人电话</label>
+                                    <input type="tel" name="emergency_phone" class="form-control"
+                                           value="<?php echo $action == 'edit' ? $editTenant['emergency_phone'] ?? '' : ''; ?>">
                                 </div>
                             </div>
                             
