@@ -163,13 +163,13 @@ $processList = array_filter(array_map('trim', explode(',', $processSteps)));
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="card h-100 shadow-sm">
                         <div class="card-header bg-dark text-white">
-                            <h5 class="mb-0 d-flex align-items-center">
-                                <div class="floor-icon me-2">
-                                    <?php for ($i = 0; $i < $floor['floor']; $i++): ?>
-                                        <div class="floor-layer" style="bottom: <?php echo $i * 5; ?>px;"></div>
-                                    <?php endfor; ?>
-                                </div>
+                            <h5 class="mb-0">
                                 <?php echo $floor['floor']; ?>楼
+                                <span class="floor-layers ms-2">
+                                    <?php for ($i = 0; $i < $floor['floor']; $i++): ?>
+                                        <span class="floor-dot"></span>
+                                    <?php endfor; ?>
+                                </span>
                             </h5>
                         </div>
                         <div class="card-body">
@@ -257,7 +257,8 @@ $processList = array_filter(array_map('trim', explode(',', $processSteps)));
                                 </li>
                                 <li class="mb-3">
                                     <i class="bi bi-geo-alt text-dark me-2"></i>
-                                    地址：<?php echo $siteAddress; ?>
+                                    地址：<a href="https://uri.amap.com/navigation?to=<?php echo $mapLng; ?>,<?php echo $mapLat; ?>&mode=esbike&policy=1" target="_blank" class="text-dark text-decoration-underline"><?php echo $siteAddress; ?></a>
+                                    <small class="text-muted ms-1">(点击导航)</small>
                                 </li>
                             </ul>
                             <p class="text-muted small">

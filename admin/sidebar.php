@@ -12,6 +12,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     
     <li class="nav-item mt-3 mb-1"><small class="text-uppercase" style="color: rgba(255,255,255,0.4); padding-left: 20px;">房屋管理</small></li>
     <li class="nav-item"><a class="nav-link <?php echo $currentPage == 'rooms.php' ? 'active' : ''; ?>" href="rooms.php"><i class="bi bi-door-open"></i> 房间管理 <span class="badge" style="background: rgba(255,255,255,0.2); color: #fff;"><?php echo $roomCount; ?></span></a></li>
+    <li class="nav-item"><a class="nav-link <?php echo $currentPage == 'rooms_batch.php' ? 'active' : ''; ?>" href="rooms_batch.php"><i class="bi bi-grid"></i> 批量管理</a></li>
     <li class="nav-item"><a class="nav-link <?php echo $currentPage == 'room_types.php' ? 'active' : ''; ?>" href="room_types.php"><i class="bi bi-tag"></i> 房间类型 <span class="badge" style="background: rgba(255,255,255,0.2); color: #fff;"><?php echo $typeCount; ?></span></a></li>
     <li class="nav-item"><a class="nav-link <?php echo $currentPage == 'photos.php' ? 'active' : ''; ?>" href="photos.php"><i class="bi bi-camera"></i> 房间照片</a></li>
     

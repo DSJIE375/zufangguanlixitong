@@ -78,6 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// 搜索条件
+$where = "1=1";
+if (!empty($_GET['search'])) {
+    $search = sanitize($_GET['search']);
+    $where .= " AND (r.room_number LIKE '%$search%' OR t.name LIKE '%$search%')";
+}
+
 // 获取所有分享链接
 $links = $conn->query("SELECT sl.*, b.bill_month, r.room_number, t.name as tenant_name
     FROM share_links sl
@@ -85,6 +92,7 @@ $links = $conn->query("SELECT sl.*, b.bill_month, r.room_number, t.name as tenan
     JOIN contracts c ON b.contract_id = c.id
     JOIN rooms r ON c.room_id = r.id
     JOIN tenants t ON c.tenant_id = t.id
+    WHERE $where
     ORDER BY sl.created_at DESC");
 
 // 获取所有账单（用于创建链接）
@@ -132,6 +140,21 @@ $allBills = $conn->query("SELECT b.id, b.bill_month, r.room_number, t.name as te
                 <?php endif; ?>
 
                 <h4 class="mb-4"><i class="bi bi-share"></i> 分享链接管理</h4>
+
+                <!-- 搜索 -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <form method="GET" class="row g-3">
+                            <div class="col-md-6">
+                                <input type="text" name="search" class="form-control" placeholder="搜索房间号、租客姓名..." value="<?php echo $_GET['search'] ?? ''; ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-dark me-2"><i class="bi bi-search"></i> 搜索</button>
+                                <a href="share_links.php" class="btn btn-outline-dark">重置</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
 
                 <div class="row">
                     <!-- 创建新链接 -->
