@@ -16,9 +16,8 @@ if (!isLoggedIn()) {
 }
 
 $action = $_GET['action'] ?? 'list';
-$room_id = $_GET['room_id'] ?? null;
+$room_id = intval($_GET['room_id'] ?? 0);
 
-// 照片类型
 $photoTypes = [
     'door' => '门口',
     'living' => '客室/客厅',
@@ -28,19 +27,24 @@ $photoTypes = [
     'other' => '其他'
 ];
 
-// 处理上传
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    requireCSRF();
     $postAction = $_POST['action'] ?? '';
     
     if ($postAction == 'upload') {
         $room_id = intval($_POST['room_id']);
-        $photo_type = sanitize($_POST['photo_type']);
+        $photo_type = $_POST['photo_type'] ?? '';
         $sort_order = intval($_POST['sort_order'] ?? 0);
+        
+        // 验证photo_type
+        if (!array_key_exists($photo_type, $photoTypes)) {
+            setFlash('error', '无效的照片类型');
+            redirect("photos.php?room_id=$room_id");
+        }
         
         if (isset($_FILES['photo']) && $_FILES['photo']['error'] == 0) {
             $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            $filename = $_FILES['photo']['name'];
-            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
             
             if (in_array($ext, $allowed)) {
                 $newname = 'room_' . $room_id . '_' . time() . '.' . $ext;
@@ -52,12 +56,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if (move_uploaded_file($_FILES['photo']['tmp_name'], $uploadPath)) {
                     $photoPath = 'uploads/rooms/' . $newname;
-                    $sql = "INSERT INTO room_photos (room_id, photo_path, photo_type, sort_order) VALUES ($room_id, '$photoPath', '$photo_type', $sort_order)";
-                    if ($conn->query($sql)) {
-                        logAction('上传照片', "上传房间照片 ID: $room_id 类型: $photo_type");
-                        setFlash('success', '照片上传成功');
-                    } else {
-                        setFlash('error', '保存失败: ' . $conn->error);
+                    $stmt = $conn->prepare("INSERT INTO room_photos (room_id, photo_path, photo_type, sort_order) VALUES (?, ?, ?, ?)");
+                    if ($stmt) {
+                        $stmt->bind_param("issi", $room_id, $photoPath, $photo_type, $sort_order);
+                        if ($stmt->execute()) {
+                            logAction('上传照片', "上传房间照片 ID: $room_id 类型: $photo_type");
+                            setFlash('success', '照片上传成功');
+                        } else {
+                            setFlash('error', '保存失败');
+                        }
+                        $stmt->close();
                     }
                 } else {
                     setFlash('error', '文件上传失败');
@@ -74,11 +82,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($postAction == 'delete') {
         $id = intval($_POST['id']);
         $rid = intval($_POST['room_id']);
-        $photo = $conn->query("SELECT photo_path FROM room_photos WHERE id=$id")->fetch_assoc();
+        
+        $stmt = $conn->prepare("SELECT photo_path FROM room_photos WHERE id=?");
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $photo = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+        
         if ($photo && file_exists(__DIR__ . '/../' . $photo['photo_path'])) {
             unlink(__DIR__ . '/../' . $photo['photo_path']);
         }
-        $conn->query("DELETE FROM room_photos WHERE id=$id");
+        
+        $stmt = $conn->prepare("DELETE FROM room_photos WHERE id=?");
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        
         logAction('删除照片', "删除房间照片 ID: $id");
         setFlash('success', '照片已删除');
         redirect("photos.php?room_id=$rid");
@@ -87,8 +110,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($postAction == 'update_sort') {
         $rid = intval($_POST['room_id']);
         $sorts = $_POST['sort_order'] ?? [];
+        
         foreach ($sorts as $pid => $order) {
-            $conn->query("UPDATE room_photos SET sort_order=" . intval($order) . " WHERE id=" . intval($pid) . " AND room_id=$rid");
+            $stmt = $conn->prepare("UPDATE room_photos SET sort_order=? WHERE id=? AND room_id=?");
+            if ($stmt) {
+                $pid = intval($pid);
+                $order = intval($order);
+                $stmt->bind_param("iii", $order, $pid, $rid);
+                $stmt->execute();
+                $stmt->close();
+            }
         }
         setFlash('success', '排序已更新');
         redirect("photos.php?room_id=$rid");
@@ -100,8 +131,21 @@ $rooms = $conn->query("SELECT r.*, rt.name as type_name FROM rooms r LEFT JOIN r
 $photos = null;
 $selectedRoom = null;
 if ($room_id) {
-    $selectedRoom = $conn->query("SELECT r.*, rt.name as type_name FROM rooms r LEFT JOIN room_types rt ON r.room_type_id = rt.id WHERE r.id=" . intval($room_id))->fetch_assoc();
-    $photos = $conn->query("SELECT * FROM room_photos WHERE room_id=" . intval($room_id) . " ORDER BY sort_order, id");
+    $stmt = $conn->prepare("SELECT r.*, rt.name as type_name FROM rooms r LEFT JOIN room_types rt ON r.room_type_id = rt.id WHERE r.id=?");
+    if ($stmt) {
+        $stmt->bind_param("i", $room_id);
+        $stmt->execute();
+        $selectedRoom = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+    
+    $stmt = $conn->prepare("SELECT * FROM room_photos WHERE room_id=? ORDER BY sort_order, id");
+    if ($stmt) {
+        $stmt->bind_param("i", $room_id);
+        $stmt->execute();
+        $photos = $stmt->get_result();
+        $stmt->close();
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -109,7 +153,7 @@ if ($room_id) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>房间照片管理 - <?php echo $siteName; ?></title>
+    <title>房间照片管理 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -125,32 +169,28 @@ if ($room_id) {
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
     </nav>
     <div class="container-fluid">
-        <!-- 手机端菜单按钮和遮罩 -->
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
-            <i class="bi bi-list"></i>
-        </button>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
         <div class="row">
             <nav class="col-md-2 d-md-block sidebar collapse py-3">
 <?php include 'sidebar.php'; ?>
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
 
                 <h4 class="mb-4"><i class="bi bi-camera"></i> 房间照片管理</h4>
 
-                <!-- 选择房间 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3 align-items-end">
@@ -160,7 +200,7 @@ if ($room_id) {
                                     <option value="">请选择房间</option>
                                     <?php while ($r = $rooms->fetch_assoc()): ?>
                                     <option value="<?php echo $r['id']; ?>" <?php echo $room_id == $r['id'] ? 'selected' : ''; ?>>
-                                        <?php echo $r['floor']; ?>楼 <?php echo $r['room_number']; ?> (<?php echo $r['type_name']; ?>)
+                                        <?php echo $r['floor']; ?>楼 <?php echo h($r['room_number']); ?> (<?php echo h($r['type_name']); ?>)
                                     </option>
                                     <?php endwhile; ?>
                                 </select>
@@ -173,11 +213,11 @@ if ($room_id) {
                 </div>
 
                 <?php if ($selectedRoom): ?>
-                <!-- 上传照片 -->
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-upload"></i> 上传照片 - <?php echo $selectedRoom['floor']; ?>楼 <?php echo $selectedRoom['room_number']; ?></h5></div>
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-upload"></i> 上传照片 - <?php echo $selectedRoom['floor']; ?>楼 <?php echo h($selectedRoom['room_number']); ?></h5></div>
                     <div class="card-body">
                         <form method="POST" enctype="multipart/form-data">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="upload">
                             <input type="hidden" name="room_id" value="<?php echo $room_id; ?>">
                             <div class="row">
@@ -206,7 +246,6 @@ if ($room_id) {
                     </div>
                 </div>
 
-                <!-- 照片列表 -->
                 <?php if ($photos && $photos->num_rows > 0): ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -214,21 +253,23 @@ if ($room_id) {
                     </div>
                     <div class="card-body">
                         <form method="POST">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="update_sort">
                             <input type="hidden" name="room_id" value="<?php echo $room_id; ?>">
                             <div class="row">
                                 <?php while ($p = $photos->fetch_assoc()): ?>
                                 <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
                                     <div class="photo-card card h-100">
-                                        <img src="../<?php echo $p['photo_path']; ?>" alt="<?php echo $photoTypes[$p['photo_type']] ?? $p['photo_type']; ?>">
+                                        <img src="../<?php echo h($p['photo_path']); ?>" alt="<?php echo h($photoTypes[$p['photo_type']] ?? $p['photo_type']); ?>">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <span class="badge bg-dark photo-type-badge"><?php echo $photoTypes[$p['photo_type']] ?? $p['photo_type']; ?></span>
+                                                <span class="badge bg-dark photo-type-badge"><?php echo h($photoTypes[$p['photo_type']] ?? $p['photo_type']); ?></span>
                                                 <input type="number" name="sort_order[<?php echo $p['id']; ?>]" value="<?php echo $p['sort_order']; ?>" class="form-control form-control-sm" style="width:60px; display:inline;">
                                             </div>
                                             <div class="d-flex justify-content-between">
                                                 <small class="text-muted"><?php echo date('m-d H:i', strtotime($p['created_at'])); ?></small>
                                                 <form method="POST" style="display:inline;" data-confirm="确定要删除这张照片吗？">
+                                                    <?php echo csrfField(); ?>
                                                     <input type="hidden" name="action" value="delete">
                                                     <input type="hidden" name="id" value="<?php echo $p['id']; ?>">
                                                     <input type="hidden" name="room_id" value="<?php echo $room_id; ?>">

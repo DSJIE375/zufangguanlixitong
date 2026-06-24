@@ -25,8 +25,10 @@
             if (xhr.status === 200) {
                 var result = JSON.parse(xhr.responseText);
                 if (result.success) {
-                    // 构建完整URL
-                    var url = window.location.origin + '/share.php?token=' + result.token;
+                    // 构建完整URL（自动检测子目录）
+                    var path = window.location.pathname;
+                    var basePath = path.substring(0, path.indexOf('/admin/'));
+                    var url = window.location.origin + basePath + '/share.php?token=' + result.token;
                     
                     // 尝试复制到剪贴板
                     if (navigator.clipboard && navigator.clipboard.writeText) {

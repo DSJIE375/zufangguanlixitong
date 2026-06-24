@@ -31,7 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             
             if (move_uploaded_file($_FILES['contract_file']['tmp_name'], $uploadPath)) {
                 $relativePath = 'uploads/contracts/' . $newname;
-                $conn->query("UPDATE contracts SET contract_file = '$relativePath' WHERE id = $contract_id");
+                $stmt = $conn->prepare("UPDATE contracts SET contract_file = ? WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param("si", $relativePath, $contract_id);
+                    $stmt->execute();
+                    $stmt->close();
+                }
                 echo json_encode(['success' => true]);
             } else {
                 echo json_encode(['success' => false, 'error' => '文件上传失败']);

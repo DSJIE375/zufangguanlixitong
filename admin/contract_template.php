@@ -182,6 +182,13 @@ function formatDate($date) {
         </div>
 
         <!-- 已保存的签名 -->
+        <?php if (!empty($contract['owner_signature'])): ?>
+        <div class="contract-section" style="margin-top: 30px;">
+            <h5>甲方签名</h5>
+            <img src="../<?php echo $contract['owner_signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <?php endif; ?>
+        
         <?php if (!empty($contract['signature'])): ?>
         <div class="contract-section" style="margin-top: 30px;">
             <h5>乙方签名</h5>
@@ -238,6 +245,22 @@ function formatDate($date) {
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1;
         ctx.strokeRect(0, 0, 220, 70);
+        
+        // 自动保存甲方签名
+        var dataUrl = canvas.toDataURL('image/png');
+        var contractId = <?php echo $contract_id; ?>;
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'save_signature.php', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                var result = JSON.parse(xhr.responseText);
+                if (result.success) {
+                    console.log('甲方签名已保存');
+                }
+            }
+        };
+        xhr.send('action=save_signature&contract_id=' + contractId + '&signature_type=owner&signature_data=' + encodeURIComponent(dataUrl));
     }
     
     // 全屏签名相关
@@ -337,7 +360,7 @@ function formatDate($date) {
                     }
                 }
             };
-            xhr.send('action=save_signature&contract_id=' + contractId + '&signature_data=' + encodeURIComponent(dataUrl));
+            xhr.send('action=save_signature&contract_id=' + contractId + '&signature_type=tenant&signature_data=' + encodeURIComponent(dataUrl));
         }
         closeFullSign();
     }

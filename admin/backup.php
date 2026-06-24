@@ -18,22 +18,22 @@ $siteName = getSiteName();
 // 处理备份下载
 if (isset($_GET['download'])) {
     logAction('下载备份', '下载数据库备份文件');
-    $tables = ['users', 'rooms', 'room_types', 'tenants', 'contracts', 'bills', 'messages', 'share_links', 'tenant_history', 'settings', 'room_photos'];
+    $tables = ['users', 'rooms', 'room_types', 'tenants', 'contracts', 'bills', 'messages', 'share_links', 'tenant_history', 'settings', 'room_photos', 'operation_logs', 'bill_history'];
     
     $sqlContent = "-- 数据库备份 - " . date('Y-m-d H:i:s') . "\n";
     $sqlContent .= "SET NAMES utf8mb4;\n\n";
     
     foreach ($tables as $table) {
-        $result = $conn->query("SELECT * FROM $table");
+        $result = $conn->query("SELECT * FROM `$table`");
         $sqlContent .= "-- 表: $table\n";
-        $sqlContent .= "TRUNCATE TABLE $table;\n";
+        $sqlContent .= "TRUNCATE TABLE `$table`;\n";
         
         while ($row = $result->fetch_assoc()) {
             $values = array_map(function($v) use ($conn) {
                 return $v === null ? 'NULL' : "'" . $conn->real_escape_string($v) . "'";
             }, $row);
             
-            $sqlContent .= "INSERT INTO $table VALUES (" . implode(', ', $values) . ");\n";
+            $sqlContent .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
         }
         $sqlContent .= "\n";
     }
@@ -48,8 +48,40 @@ if (isset($_GET['download'])) {
 
 // 处理恢复
 if (isset($_POST['action']) && $_POST['action'] == 'restore') {
+    requireCSRF();
+    
     if (isset($_FILES['backup_file']) && $_FILES['backup_file']['error'] == 0) {
+        // 验证文件大小 (最大10MB)
+        if ($_FILES['backup_file']['size'] > 10 * 1024 * 1024) {
+            setFlash('error', '备份文件过大，最大支持10MB');
+            redirect('backup.php');
+        }
+        
+        // 验证文件扩展名
+        $ext = strtolower(pathinfo($_FILES['backup_file']['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'sql') {
+            setFlash('error', '只支持.sql格式的备份文件');
+            redirect('backup.php');
+        }
+        
         $sqlContent = file_get_contents($_FILES['backup_file']['tmp_name']);
+        
+        // 安全检查：禁止危险操作
+        $forbiddenPatterns = [
+            '/DROP\s+DATABASE/i',
+            '/DELETE\s+FROM\s+users/i',
+            '/TRUNCATE\s+TABLE\s+users/i',
+            '/UPDATE\s+users\s+SET.*password/i',
+        ];
+        
+        foreach ($forbiddenPatterns as $pattern) {
+            if (preg_match($pattern, $sqlContent)) {
+                setFlash('error', '备份文件包含危险操作，已被拒绝');
+                logAction('恢复数据失败', '备份文件包含危险操作');
+                redirect('backup.php');
+            }
+        }
+        
         $statements = array_filter(array_map('trim', explode(';', $sqlContent)));
         
         $success = 0;
@@ -57,10 +89,13 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
         
         foreach ($statements as $statement) {
             if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                if ($conn->query($statement)) {
-                    $success++;
-                } else {
-                    $errors++;
+                // 只允许INSERT、UPDATE、TRUNCATE操作
+                if (preg_match('/^(INSERT|UPDATE|TRUNCATE)\s/i', $statement)) {
+                    if ($conn->query($statement)) {
+                        $success++;
+                    } else {
+                        $errors++;
+                    }
                 }
             }
         }
@@ -80,7 +115,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <title>数据备份 - <?php echo $siteName; ?></title>
+    <title>数据备份 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -90,7 +125,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
@@ -104,8 +139,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
@@ -113,7 +148,6 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
                 <h4 class="mb-4"><i class="bi bi-database"></i> 数据备份</h4>
 
                 <div class="row">
-                    <!-- 备份数据 -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-dark text-white">
@@ -142,7 +176,6 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
                         </div>
                     </div>
 
-                    <!-- 恢复数据 -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-danger text-white">
@@ -155,6 +188,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
                                     <strong>警告：</strong>恢复操作将覆盖当前数据！
                                 </div>
                                 <form method="POST" enctype="multipart/form-data" onsubmit="return confirm('确定要恢复数据吗？这将覆盖当前所有数据！')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="restore">
                                     <div class="mb-3">
                                         <label class="form-label">选择备份文件</label>
@@ -169,7 +203,6 @@ if (isset($_POST['action']) && $_POST['action'] == 'restore') {
                     </div>
                 </div>
 
-                <!-- 备份说明 -->
                 <div class="card shadow-sm">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="bi bi-info-circle"></i> 备份说明</h5>

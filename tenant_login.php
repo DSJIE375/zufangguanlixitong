@@ -1,15 +1,6 @@
 <?php
 require_once 'includes/database.php';
 
-function getSetting($key) {
-    global $conn;
-    $result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='$key'");
-    if ($result && $result->num_rows > 0) {
-        return $result->fetch_assoc()['setting_value'];
-    }
-    return '';
-}
-
 function getSiteName() {
     global $conn;
     $result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_name'");
@@ -23,38 +14,48 @@ $siteName = getSiteName();
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $phone = sanitize($_POST['phone'] ?? '');
-    $name = sanitize($_POST['name'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $name = trim($_POST['name'] ?? '');
     
-    if ($phone && $name) {
-        // 查找租客（包括已退租但一个月内的）
-        $tenant = $conn->query("SELECT t.*,
+    if (empty($phone) || empty($name)) {
+        $error = '请填写姓名和电话';
+    } elseif (!preg_match('/^1[3-9]\d{9}$/', $phone)) {
+        $error = '请输入正确的手机号码';
+    } else {
+        // 使用准备语句
+        $stmt = $conn->prepare("SELECT t.*,
             (SELECT COUNT(*) FROM contracts c WHERE c.tenant_id = t.id AND c.status = 'active') as active_contracts,
             (SELECT COUNT(*) FROM tenant_history th WHERE th.tenant_name = t.name AND th.tenant_phone = t.phone) as history_count,
             (SELECT DATEDIFF(NOW(), MAX(th.end_date)) FROM tenant_history th WHERE th.tenant_name = t.name AND th.tenant_phone = t.phone) as days_after_checkout
             FROM tenants t
-            WHERE t.phone = '$phone' AND t.name = '$name'
-            LIMIT 1")->fetch_assoc();
+            WHERE t.phone = ? AND t.name = ?
+            LIMIT 1");
         
-        if ($tenant) {
-            // 检查是否可以登录
-            $isRecentlyActive = $tenant['active_contracts'] > 0;
-            $hasHistory = $tenant['history_count'] > 0;
-            $isWithinMonth = ($tenant['days_after_checkout'] !== null && $tenant['days_after_checkout'] <= 30);
+        if ($stmt) {
+            $stmt->bind_param("ss", $phone, $name);
+            $stmt->execute();
+            $tenant = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
             
-            if ($isRecentlyActive || ($hasHistory && $isWithinMonth)) {
-                $_SESSION['tenant_id'] = $tenant['id'];
-                $_SESSION['tenant_name'] = $tenant['name'];
-                header("Location: tenant_bills.php");
-                exit;
+            if ($tenant) {
+                $isRecentlyActive = $tenant['active_contracts'] > 0;
+                $hasHistory = $tenant['history_count'] > 0;
+                $isWithinMonth = ($tenant['days_after_checkout'] !== null && $tenant['days_after_checkout'] <= 30);
+                
+                if ($isRecentlyActive || ($hasHistory && $isWithinMonth)) {
+                    session_regenerate_id(true);
+                    $_SESSION['tenant_id'] = $tenant['id'];
+                    $_SESSION['tenant_name'] = $tenant['name'];
+                    $_SESSION['tenant_login_time'] = time();
+                    header("Location: tenant_bills.php");
+                    exit;
+                } else {
+                    $error = '您的租房信息已超过一个月，如需查看请联系房东';
+                }
             } else {
-                $error = '您的租房信息已超过一个月，如需查看请联系房东';
+                $error = '未找到您的租房信息，请检查姓名和电话是否正确';
             }
-        } else {
-            $error = '未找到您的租房信息，请检查姓名和电话是否正确';
         }
-    } else {
-        $error = '请填写姓名和电话';
     }
 }
 ?>
@@ -64,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <title>租客登录 - <?php echo $siteName; ?></title>
+    <title>租客登录 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -84,17 +85,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
             <div class="login-body">
                 <?php if ($error): ?>
-                    <div class="alert alert-danger"><?php echo $error; ?></div>
+                    <div class="alert alert-danger"><?php echo h($error); ?></div>
                 <?php endif; ?>
                 
                 <form method="POST">
                     <div class="mb-3">
                         <label class="form-label" style="font-weight: 600;">姓名</label>
-                        <input type="text" name="name" class="form-control" required placeholder="请输入租房时登记的姓名">
+                        <input type="text" name="name" class="form-control" required placeholder="请输入租房时登记的姓名" maxlength="50">
                     </div>
                     <div class="mb-4">
                         <label class="form-label" style="font-weight: 600;">电话</label>
-                        <input type="tel" name="phone" class="form-control" required placeholder="请输入租房时登记的电话">
+                        <input type="tel" name="phone" class="form-control" required placeholder="请输入租房时登记的电话" maxlength="11">
                     </div>
                     <button type="submit" class="btn btn-dark w-100 py-2" style="font-weight: 600;">登录查看账单</button>
                 </form>

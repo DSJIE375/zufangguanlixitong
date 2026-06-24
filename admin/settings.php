@@ -7,10 +7,17 @@ if (!isLoggedIn()) {
 
 function getSetting($key) {
     global $conn;
-    $sql = "SELECT setting_value FROM settings WHERE setting_key = '$key'";
-    $result = $conn->query($sql);
-    if ($result->num_rows > 0) {
-        return $result->fetch_assoc()['setting_value'];
+    $stmt = $conn->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+    if ($stmt) {
+        $stmt->bind_param("s", $key);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $value = $result->fetch_assoc()['setting_value'];
+            $stmt->close();
+            return $value;
+        }
+        $stmt->close();
     }
     return '';
 }
@@ -18,6 +25,7 @@ function getSetting($key) {
 $siteName = getSetting('site_name') ?: 'DSJIE.租房管理系统';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    requireCSRF();
     $fields = [
         'water_price', 'electricity_price', 'garbage_fee', 'site_name', 'site_phone', 'site_address',
         'banner_title', 'banner_subtitle', 'banner_btn_text',
@@ -30,12 +38,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     foreach ($fields as $field) {
         if (isset($_POST[$field])) {
-            $value = sanitize($_POST[$field]);
-            $check = $conn->query("SELECT id FROM settings WHERE setting_key='$field'");
-            if ($check->num_rows > 0) {
-                $conn->query("UPDATE settings SET setting_value='$value' WHERE setting_key='$field'");
-            } else {
-                $conn->query("INSERT INTO settings (setting_key, setting_value) VALUES ('$field', '$value')");
+            $value = trim($_POST[$field]);
+            $stmt = $conn->prepare("SELECT id FROM settings WHERE setting_key=?");
+            if ($stmt) {
+                $stmt->bind_param("s", $field);
+                $stmt->execute();
+                $check = $stmt->get_result();
+                $stmt->close();
+                
+                if ($check->num_rows > 0) {
+                    $stmt = $conn->prepare("UPDATE settings SET setting_value=? WHERE setting_key=?");
+                    if ($stmt) {
+                        $stmt->bind_param("ss", $value, $field);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)");
+                    if ($stmt) {
+                        $stmt->bind_param("ss", $field, $value);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
             }
         }
     }
@@ -55,11 +80,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $uploadPath = $uploadDir . $newname;
                 if (move_uploaded_file($_FILES[$imgField]['tmp_name'], $uploadPath)) {
                     $value = 'uploads/banner/' . $newname;
-                    $check = $conn->query("SELECT id FROM settings WHERE setting_key='$imgField'");
-                    if ($check->num_rows > 0) {
-                        $conn->query("UPDATE settings SET setting_value='$value' WHERE setting_key='$imgField'");
-                    } else {
-                        $conn->query("INSERT INTO settings (setting_key, setting_value) VALUES ('$imgField', '$value')");
+                    $stmt = $conn->prepare("SELECT id FROM settings WHERE setting_key=?");
+                    if ($stmt) {
+                        $stmt->bind_param("s", $imgField);
+                        $stmt->execute();
+                        $check = $stmt->get_result();
+                        $stmt->close();
+                        
+                        if ($check->num_rows > 0) {
+                            $stmt = $conn->prepare("UPDATE settings SET setting_value=? WHERE setting_key=?");
+                            if ($stmt) {
+                                $stmt->bind_param("ss", $value, $imgField);
+                                $stmt->execute();
+                                $stmt->close();
+                            }
+                        } else {
+                            $stmt = $conn->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)");
+                            if ($stmt) {
+                                $stmt->bind_param("ss", $imgField, $value);
+                                $stmt->execute();
+                                $stmt->close();
+                            }
+                        }
                     }
                 }
             }

@@ -15,19 +15,32 @@ if (!isLoggedIn()) {
     redirect('login.php');
 }
 
-// 删除留言
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
+    requireCSRF();
+    
     if ($_POST['action'] == 'delete') {
         $id = intval($_POST['id']);
+        $stmt = $conn->prepare("DELETE FROM messages WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
         logAction('删除留言', "删除留言 ID: $id");
-        $conn->query("DELETE FROM messages WHERE id = $id");
         setFlash('success', '留言已删除');
         redirect('messages.php');
     }
+    
     if ($_POST['action'] == 'read') {
         $id = intval($_POST['id']);
-        $conn->query("UPDATE messages SET is_read=1 WHERE id=$id");
+        $stmt = $conn->prepare("UPDATE messages SET is_read=1 WHERE id=?");
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
+    
     if ($_POST['action'] == 'delete_all') {
         logAction('清空留言', '清空所有留言');
         $conn->query("DELETE FROM messages");
@@ -38,12 +51,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
 
 // 搜索条件
 $where = "1=1";
+$params = [];
+$types = '';
+
 if (!empty($_GET['search'])) {
-    $search = sanitize($_GET['search']);
-    $where .= " AND (name LIKE '%$search%' OR phone LIKE '%$search%' OR content LIKE '%$search%')";
+    $search = '%' . trim($_GET['search']) . '%';
+    $where .= " AND (name LIKE ? OR phone LIKE ? OR content LIKE ?)";
+    $params[] = $search;
+    $params[] = $search;
+    $params[] = $search;
+    $types .= 'sss';
 }
 
-$messages = $conn->query("SELECT * FROM messages WHERE $where ORDER BY created_at DESC");
+$sql = "SELECT * FROM messages WHERE $where ORDER BY created_at DESC";
+$stmt = $conn->prepare($sql);
+if ($stmt && !empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+if ($stmt) {
+    $stmt->execute();
+    $messages = $stmt->get_result();
+    $stmt->close();
+} else {
+    $messages = $conn->query($sql);
+}
+
 $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=0")->fetch_assoc()['cnt'];
 ?>
 <!DOCTYPE html>
@@ -51,7 +83,7 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>留言管理 - <?php echo $siteName; ?></title>
+    <title>留言管理 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -61,13 +93,12 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
     </nav>
     <div class="container-fluid">
-        <!-- 手机端菜单按钮和遮罩 -->
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
         <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
             <i class="bi bi-list"></i>
@@ -78,8 +109,8 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
@@ -87,17 +118,17 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="mb-0"><i class="bi bi-chat-dots"></i> 留言管理 <?php if ($unreadCount > 0): ?><span class="badge bg-dark"><?php echo $unreadCount; ?> 条未读</span><?php endif; ?></h4>
                     <form method="POST" data-confirm="确定要清空所有留言吗？">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="delete_all">
                         <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i> 清空所有</button>
                     </form>
                 </div>
 
-                <!-- 搜索 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
                             <div class="col-md-6">
-                                <input type="text" name="search" class="form-control" placeholder="搜索姓名、电话或内容..." value="<?php echo $_GET['search'] ?? ''; ?>">
+                                <input type="text" name="search" class="form-control" placeholder="搜索姓名、电话或内容..." value="<?php echo h($_GET['search'] ?? ''); ?>">
                             </div>
                             <div class="col-md-4">
                                 <button type="submit" class="btn btn-dark me-2"><i class="bi bi-search"></i> 搜索</button>
@@ -114,18 +145,19 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
                         <div class="card shadow-sm <?php echo !$m['is_read'] ? 'border-primary' : ''; ?>">
                             <div class="card-header d-flex justify-content-between align-items-center <?php echo !$m['is_read'] ? 'bg-dark bg-opacity-10' : ''; ?>">
                                 <div>
-                                    <strong><?php echo $m['name']; ?></strong>
+                                    <strong><?php echo h($m['name']); ?></strong>
                                     <?php if (!$m['is_read']): ?><span class="badge bg-dark ms-2">新</span><?php endif; ?>
                                 </div>
                                 <small class="text-muted"><?php echo date('Y-m-d H:i', strtotime($m['created_at'])); ?></small>
                             </div>
                             <div class="card-body">
-                                <p><i class="bi bi-telephone text-muted"></i> <?php echo $m['phone']; ?></p>
-                                <p class="mb-0"><?php echo nl2br($m['content']); ?></p>
+                                <p><i class="bi bi-telephone text-muted"></i> <?php echo h($m['phone']); ?></p>
+                                <p class="mb-0"><?php echo nl2br(h($m['content'])); ?></p>
                             </div>
                             <div class="card-footer bg-white d-flex justify-content-between">
                                 <?php if (!$m['is_read']): ?>
                                 <form method="POST" style="display:inline;">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="read">
                                     <input type="hidden" name="id" value="<?php echo $m['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-check-lg"></i> 标为已读</button>
@@ -134,6 +166,7 @@ $unreadCount = $conn->query("SELECT COUNT(*) as cnt FROM messages WHERE is_read=
                                 <span></span>
                                 <?php endif; ?>
                                 <form method="POST" style="display:inline;" data-confirm="确定删除？">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $m['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>

@@ -160,10 +160,17 @@ function formatDate($date) {
         </div>
 
         <!-- 签名 -->
+        <?php if (!empty($contract['owner_signature'])): ?>
+        <div class="contract-section" style="margin-top: 30px;">
+            <h5>甲方签名</h5>
+            <img src="<?php echo $contract['owner_signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <?php endif; ?>
+        
         <?php if (!empty($contract['signature'])): ?>
         <div class="contract-section" style="margin-top: 30px;">
             <h5>乙方签名</h5>
-            <img src="../<?php echo $contract['signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
+            <img src="<?php echo $contract['signature']; ?>" style="max-height: 150px; border: 1px solid #ddd; border-radius: 8px;">
         </div>
         <?php endif; ?>
 
@@ -174,11 +181,11 @@ function formatDate($date) {
             <?php 
             $fileExt = strtolower(pathinfo($contract['contract_file'], PATHINFO_EXTENSION));
             if (in_array($fileExt, ['jpg', 'jpeg', 'png', 'gif'])): ?>
-                <img src="../<?php echo $contract['contract_file']; ?>" class="img-fluid rounded" style="max-height: 600px;">
+                <img src="<?php echo $contract['contract_file']; ?>" class="img-fluid rounded" style="max-height: 600px;">
             <?php elseif ($fileExt == 'pdf'): ?>
-                <iframe src="../<?php echo $contract['contract_file']; ?>" style="width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 8px;"></iframe>
+                <iframe src="<?php echo $contract['contract_file']; ?>" style="width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 8px;"></iframe>
             <?php else: ?>
-                <a href="../<?php echo $contract['contract_file']; ?>" class="btn btn-dark" target="_blank"><i class="bi bi-download me-1"></i> 下载合同文件</a>
+                <a href="<?php echo $contract['contract_file']; ?>" class="btn btn-dark" target="_blank"><i class="bi bi-download me-1"></i> 下载合同文件</a>
             <?php endif; ?>
         </div>
         <?php endif; ?>

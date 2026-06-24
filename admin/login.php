@@ -1,7 +1,6 @@
 <?php
 require_once '../includes/database.php';
 
-// 获取网站名称
 function getSiteName() {
     global $conn;
     $result = $conn->query("SELECT setting_value FROM settings WHERE setting_key='site_name'");
@@ -12,73 +11,92 @@ function getSiteName() {
 }
 $siteName = getSiteName();
 
-// 如果已登录，跳转到后台首页
 if (isLoggedIn()) {
     redirect('index.php');
 }
 
 $error = '';
 
-// 检查登录尝试次数
+// 检查登录尝试次数（使用IP限制）
 function checkLoginAttempts() {
-    if (!isset($_SESSION['login_attempts'])) {
-        $_SESSION['login_attempts'] = 0;
-        $_SESSION['login_last_attempt'] = time();
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $key = 'login_attempts_' . md5($ip);
+    
+    if (!isset($_SESSION[$key])) {
+        $_SESSION[$key] = 0;
+        $_SESSION[$key . '_time'] = time();
     }
     
     // 5分钟内最多尝试5次
-    if (time() - $_SESSION['login_last_attempt'] > 300) {
-        $_SESSION['login_attempts'] = 0;
+    if (time() - $_SESSION[$key . '_time'] > 300) {
+        $_SESSION[$key] = 0;
     }
     
-    return $_SESSION['login_attempts'];
+    return $_SESSION[$key];
 }
 
 // 记录登录尝试
 function recordLoginAttempt() {
-    $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
-    $_SESSION['login_last_attempt'] = time();
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $key = 'login_attempts_' . md5($ip);
+    $_SESSION[$key] = ($_SESSION[$key] ?? 0) + 1;
+    $_SESSION[$key . '_time'] = time();
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // 检查是否被锁定
-    $attempts = checkLoginAttempts();
-    if ($attempts >= 5) {
-        $error = '登录尝试次数过多，请5分钟后再试';
+    // CSRF验证
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!verifyCSRFToken($csrf_token)) {
+        $error = '安全验证失败，请重试';
     } else {
-        $username = sanitize($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-        
-        // 验证码验证（如果启用）
-        if (isset($_POST['captcha']) && $_SESSION['captcha'] ?? '' !== strtolower($_POST['captcha'])) {
-            $error = '验证码错误';
+        $attempts = checkLoginAttempts();
+        if ($attempts >= 5) {
+            $error = '登录尝试次数过多，请5分钟后再试';
         } else {
-            $sql = "SELECT * FROM users WHERE username = '$username'";
-            $result = $conn->query($sql);
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
             
-            if ($result->num_rows > 0) {
-                $user = $result->fetch_assoc();
-                if (password_verify($password, $user['password'])) {
-                    // 登录成功，清除尝试次数
-                    unset($_SESSION['login_attempts']);
-                    unset($_SESSION['login_last_attempt']);
-                    
-                    // 重新生成session ID防止会话固定攻击
-                    session_regenerate_id(true);
-                    
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['realname'] = $user['realname'];
-                    $_SESSION['user_role'] = $user['role'];
-                    $_SESSION['login_time'] = time();
-                    redirect('index.php');
-                } else {
-                    recordLoginAttempt();
-                    $error = '密码错误';
-                }
+            if (empty($username) || empty($password)) {
+                $error = '请输入用户名和密码';
             } else {
-                recordLoginAttempt();
-                $error = '用户名或密码错误'; // 统一提示，防止用户名枚举
+                // 使用准备语句查询
+                $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+                if ($stmt) {
+                    $stmt->bind_param("s", $username);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    
+                    if ($result->num_rows > 0) {
+                        $user = $result->fetch_assoc();
+                        if (password_verify($password, $user['password'])) {
+                            // 登录成功
+                            unset($_SESSION['login_attempts_' . md5($_SERVER['REMOTE_ADDR'] ?? '')]);
+                            unset($_SESSION['login_attempts_' . md5($_SERVER['REMOTE_ADDR'] ?? '') . '_time']);
+                            
+                            // 重新生成session ID防止会话固定攻击
+                            session_regenerate_id(true);
+                            
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['username'] = $user['username'];
+                            $_SESSION['realname'] = $user['realname'];
+                            $_SESSION['user_role'] = $user['role'];
+                            $_SESSION['login_time'] = time();
+                            $_SESSION['login_ip'] = $_SERVER['REMOTE_ADDR'] ?? '';
+                            
+                            logAction('管理员登录', "用户 {$user['username']} 登录成功");
+                            redirect('index.php');
+                        } else {
+                            recordLoginAttempt();
+                            $error = '密码错误';
+                            logAction('登录失败', "用户 {$username} 密码错误");
+                        }
+                    } else {
+                        recordLoginAttempt();
+                        $error = '用户名或密码错误';
+                        logAction('登录失败', "用户 {$username} 不存在");
+                    }
+                    $stmt->close();
+                }
             }
         }
     }
@@ -90,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <title>后台登录 - <?php echo $siteName; ?></title>
+    <title>后台登录 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -159,8 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body>
     <div class="card login-card">
         <div class="login-header">
-            <img src="../images/logo.svg" alt="<?php echo $siteName; ?>" height="48" style="margin-bottom: 15px;">
-            <h3><?php echo $siteName; ?></h3>
+            <img src="../images/logo.svg" alt="<?php echo h($siteName); ?>" height="48" style="margin-bottom: 15px;">
+            <h3><?php echo h($siteName); ?></h3>
             <small style="color: #86868b;">后台管理系统</small>
         </div>
         <div class="login-body">
@@ -172,17 +190,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             <?php if ($error): ?>
                 <div class="alert" style="background: #f8d7da; border: none; border-radius: 10px;">
-                    <i class="bi bi-exclamation-circle me-2"></i><?php echo $error; ?>
+                    <i class="bi bi-exclamation-circle me-2"></i><?php echo h($error); ?>
                     <?php if (($attempts ?? 0) >= 3): ?>
                         <br><small>剩余尝试次数：<?php echo 5 - ($attempts ?? 0); ?></small>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
             
-            <form method="POST">
+            <form method="POST" id="loginForm">
+                <?php echo csrfField(); ?>
                 <div class="mb-3">
                     <label class="form-label" style="font-weight: 600;">用户名</label>
-                    <input type="text" class="form-control" name="username" required autofocus placeholder="请输入用户名">
+                    <input type="text" class="form-control" name="username" required autofocus placeholder="请输入用户名" maxlength="50">
                 </div>
                 <div class="mb-4">
                     <label class="form-label" style="font-weight: 600;">密码</label>

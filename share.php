@@ -19,32 +19,61 @@ function getSiteName() {
     return 'DSJIE.租房管理系统';
 }
 
-$token = sanitize($_GET['token'] ?? '');
-if (!$token) {
+$token = $_GET['token'] ?? '';
+$bill_id = intval($_GET['bill_id'] ?? 0);
+
+if (!$token && !$bill_id) {
     header("Location: index.php");
     exit;
 }
 
-// 验证token
-$shareLink = $conn->query("SELECT * FROM share_links WHERE token='$token' AND is_active=1")->fetch_assoc();
+$bill = null;
+$error = '';
 
-if (!$shareLink) {
-    $error = '链接无效或已被禁用';
-} else {
-    // 检查是否过期
-    if ($shareLink['expire_at'] && strtotime($shareLink['expire_at']) < time()) {
+if ($token) {
+    // 清理token，去除前后空格和特殊字符
+    $token = trim($token);
+    
+    // 通过token访问
+    $stmt = $conn->prepare("SELECT * FROM share_links WHERE token=?");
+    if ($stmt) {
+        $stmt->bind_param("s", $token);
+        $stmt->execute();
+        $shareLink = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+    
+    if (!$shareLink) {
+        $error = '链接无效';
+    } elseif ($shareLink['is_active'] != 1) {
+        $error = '链接已被禁用';
+    } elseif ($shareLink['expire_at'] && strtotime($shareLink['expire_at']) < time()) {
         $error = '链接已过期';
     } else {
-        // 获取账单详情
-        $bill = $conn->query("SELECT b.*, c.monthly_rent, r.room_number, r.floor,
-            t.name as tenant_name, t.phone as tenant_phone,
-            rt.name as type_name, rt.area
-            FROM bills b
-            LEFT JOIN contracts c ON b.contract_id = c.id
-            LEFT JOIN rooms r ON c.room_id = r.id
-            LEFT JOIN tenants t ON c.tenant_id = t.id
-            LEFT JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE b.id = {$shareLink['bill_id']}")->fetch_assoc();
+        $bill_id = $shareLink['bill_id'];
+    }
+}
+
+if ($bill_id && !$error) {
+    // 通过bill_id直接访问
+    $stmt = $conn->prepare("SELECT b.*, c.monthly_rent, r.room_number, r.floor,
+        t.name as tenant_name, t.phone as tenant_phone,
+        rt.name as type_name, rt.area
+        FROM bills b
+        LEFT JOIN contracts c ON b.contract_id = c.id
+        LEFT JOIN rooms r ON c.room_id = r.id
+        LEFT JOIN tenants t ON c.tenant_id = t.id
+        LEFT JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.id = ?");
+    if ($stmt) {
+        $stmt->bind_param("i", $bill_id);
+        $stmt->execute();
+        $bill = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+    
+    if (!$bill) {
+        $error = '账单不存在';
     }
 }
 
@@ -83,7 +112,7 @@ $siteAddress = getSetting('site_address') ?: '';
     </style>
 </head>
 <body>
-    <?php if (isset($error)): ?>
+    <?php if (!empty($error)): ?>
     <div class="error-box">
         <i class="bi bi-exclamation-triangle"></i>
         <h2 class="mt-4"><?php echo $error; ?></h2>

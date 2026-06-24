@@ -6,6 +6,8 @@ if (!isLoggedIn()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    requireCSRF();
+    
     $old_password = $_POST['old_password'] ?? '';
     $new_password = $_POST['new_password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
@@ -21,8 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     $user_id = $_SESSION['user_id'];
-    $result = $conn->query("SELECT password FROM users WHERE id = $user_id");
-    $user = $result->fetch_assoc();
+    $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+    }
     
     if (!password_verify($old_password, $user['password'])) {
         setFlash('error', '当前密码错误');
@@ -30,13 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-    $sql = "UPDATE users SET password = '$hashed_password' WHERE id = $user_id";
-    
-    if ($conn->query($sql)) {
-        logAction('修改密码', '修改管理员密码');
-        setFlash('success', '密码修改成功');
-    } else {
-        setFlash('error', '密码修改失败');
+    $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("si", $hashed_password, $user_id);
+        if ($stmt->execute()) {
+            logAction('修改密码', '修改管理员密码');
+            setFlash('success', '密码修改成功');
+        } else {
+            setFlash('error', '密码修改失败');
+        }
+        $stmt->close();
     }
     
     redirect('settings.php');
