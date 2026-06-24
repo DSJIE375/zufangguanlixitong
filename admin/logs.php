@@ -15,9 +15,11 @@ function getSiteName() {
 }
 $siteName = getSiteName();
 
-// 清空日志
-if (isset($_GET['clear'])) {
+// 清空日志（需要POST请求）
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'clear_logs') {
+    requireCSRF();
     $conn->query("TRUNCATE TABLE operation_logs");
+    logAction('清空日志', '清空所有操作日志');
     setFlash('success', '日志已清空');
     redirect('logs.php');
 }
@@ -38,7 +40,7 @@ $logs = $conn->query("SELECT * FROM operation_logs ORDER BY created_at DESC LIMI
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <title>操作日志 - <?php echo $siteName; ?></title>
+    <title>操作日志 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -48,7 +50,7 @@ $logs = $conn->query("SELECT * FROM operation_logs ORDER BY created_at DESC LIMI
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
@@ -62,17 +64,21 @@ $logs = $conn->query("SELECT * FROM operation_logs ORDER BY created_at DESC LIMI
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
 
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="mb-0"><i class="bi bi-clock-history"></i> 操作日志</h4>
-                    <a href="logs.php?clear=1" class="btn btn-outline-danger btn-sm" onclick="return confirm('确定要清空所有日志吗？')">
-                        <i class="bi bi-trash"></i> 清空日志
-                    </a>
+                    <form method="POST" data-confirm="确定要清空所有日志吗？">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="action" value="clear_logs">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash"></i> 清空日志
+                        </button>
+                    </form>
                 </div>
 
                 <div class="card shadow-sm">
@@ -93,23 +99,22 @@ $logs = $conn->query("SELECT * FROM operation_logs ORDER BY created_at DESC LIMI
                                     <?php while ($log = $logs->fetch_assoc()): ?>
                                     <tr>
                                         <td><small><?php echo date('Y-m-d H:i:s', strtotime($log['created_at'])); ?></small></td>
-                                        <td><?php echo $log['username']; ?></td>
+                                        <td><?php echo h($log['username']); ?></td>
                                         <td>
                                             <span class="badge bg-<?php 
                                                 echo strpos($log['action'], '删除') !== false ? 'danger' : 
                                                 (strpos($log['action'], '添加') !== false ? 'success' : 
                                                 (strpos($log['action'], '修改') !== false ? 'warning' : 'secondary'));
-                                            ?>"><?php echo $log['action']; ?></span>
+                                            ?>"><?php echo h($log['action']); ?></span>
                                         </td>
-                                        <td><small><?php echo $log['detail']; ?></small></td>
-                                        <td><small><?php echo $log['ip_address']; ?></small></td>
+                                        <td><small><?php echo h($log['detail']); ?></small></td>
+                                        <td><small><?php echo h($log['ip_address']); ?></small></td>
                                     </tr>
                                     <?php endwhile; ?>
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- 分页 -->
                         <?php if ($totalPages > 1): ?>
                         <nav>
                             <ul class="pagination justify-content-center">

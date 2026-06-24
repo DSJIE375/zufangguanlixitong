@@ -11,73 +11,84 @@ function getSiteName() {
 }
 $siteName = getSiteName();
 
-// 检查登录
 if (!isLoggedIn()) {
     redirect('login.php');
 }
 
 $action = $_GET['action'] ?? 'list';
-$id = $_GET['id'] ?? null;
+$id = intval($_GET['id'] ?? 0);
 
 // 处理表单提交
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    requireCSRF();
     $postAction = $_POST['action'] ?? '';
     
     if ($postAction == 'add') {
         $floor = intval($_POST['floor']);
-        $room_number = sanitize($_POST['room_number']);
+        $room_number = trim($_POST['room_number']);
         $room_type_id = intval($_POST['room_type_id']);
-        $status = sanitize($_POST['status']);
-        $description = sanitize($_POST['description'] ?? '');
+        $status = in_array($_POST['status'] ?? '', ['available', 'rented']) ? $_POST['status'] : 'available';
+        $description = trim($_POST['description'] ?? '');
         
-        $sql = "INSERT INTO rooms (floor, room_number, room_type_id, status, description) 
-                VALUES ($floor, '$room_number', $room_type_id, '$status', '$description')";
-        
-        if ($conn->query($sql)) {
-            logAction('添加房间', "添加房间 $room_number ({$floor}楼)");
-            setFlash('success', '房间添加成功');
-            redirect('rooms.php');
-        } else {
-            setFlash('error', '添加失败: ' . $conn->error);
+        $stmt = $conn->prepare("INSERT INTO rooms (floor, room_number, room_type_id, status, description) VALUES (?, ?, ?, ?, ?)");
+        if ($stmt) {
+            $stmt->bind_param("issis", $floor, $room_number, $room_type_id, $status, $description);
+            if ($stmt->execute()) {
+                logAction('添加房间', "添加房间 $room_number ({$floor}楼)");
+                setFlash('success', '房间添加成功');
+                redirect('rooms.php');
+            } else {
+                setFlash('error', '添加失败');
+            }
+            $stmt->close();
         }
     }
     
     if ($postAction == 'edit') {
         $id = intval($_POST['id']);
         $floor = intval($_POST['floor']);
-        $room_number = sanitize($_POST['room_number']);
+        $room_number = trim($_POST['room_number']);
         $room_type_id = intval($_POST['room_type_id']);
-        $status = sanitize($_POST['status']);
-        $description = sanitize($_POST['description'] ?? '');
+        $status = in_array($_POST['status'] ?? '', ['available', 'rented']) ? $_POST['status'] : 'available';
+        $description = trim($_POST['description'] ?? '');
         
-        $sql = "UPDATE rooms SET 
-                floor = $floor,
-                room_number = '$room_number',
-                room_type_id = $room_type_id,
-                status = '$status',
-                description = '$description'
-                WHERE id = $id";
-        
-        if ($conn->query($sql)) {
-            logAction('修改房间', "修改房间 $room_number ({$floor}楼)");
-            setFlash('success', '房间更新成功');
-            redirect('rooms.php');
-        } else {
-            setFlash('error', '更新失败: ' . $conn->error);
+        $stmt = $conn->prepare("UPDATE rooms SET floor=?, room_number=?, room_type_id=?, status=?, description=? WHERE id=?");
+        if ($stmt) {
+            $stmt->bind_param("isiisi", $floor, $room_number, $room_type_id, $status, $description, $id);
+            if ($stmt->execute()) {
+                logAction('修改房间', "修改房间 $room_number ({$floor}楼)");
+                setFlash('success', '房间更新成功');
+                redirect('rooms.php');
+            } else {
+                setFlash('error', '更新失败');
+            }
+            $stmt->close();
         }
     }
     
     if ($postAction == 'delete') {
         $id = intval($_POST['id']);
-        $room = $conn->query("SELECT room_number, floor FROM rooms WHERE id = $id")->fetch_assoc();
-        $sql = "DELETE FROM rooms WHERE id = $id";
         
-        if ($conn->query($sql)) {
-            logAction('删除房间', "删除房间 {$room['room_number']} ({$room['floor']}楼)");
-            setFlash('success', '房间删除成功');
-            redirect('rooms.php');
-        } else {
-            setFlash('error', '删除失败: ' . $conn->error);
+        // 获取房间信息
+        $stmt = $conn->prepare("SELECT room_number, floor FROM rooms WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $room = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+        
+        if ($room) {
+            $stmt = $conn->prepare("DELETE FROM rooms WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param("i", $id);
+                if ($stmt->execute()) {
+                    logAction('删除房间', "删除房间 {$room['room_number']} ({$room['floor']}楼)");
+                    setFlash('success', '房间删除成功');
+                    redirect('rooms.php');
+                }
+                $stmt->close();
+            }
         }
     }
 }
@@ -85,33 +96,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // 获取房间类型
 $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
 
-// 搜索条件
+// 搜索条件（使用准备语句）
 $where = "1=1";
+$params = [];
+$types = '';
+
 if (!empty($_GET['search'])) {
-    $search = sanitize($_GET['search']);
-    $where .= " AND r.room_number LIKE '%$search%'";
+    $search = '%' . trim($_GET['search']) . '%';
+    $where .= " AND r.room_number LIKE ?";
+    $params[] = $search;
+    $types .= 's';
 }
 if (!empty($_GET['floor'])) {
     $floor = intval($_GET['floor']);
-    $where .= " AND r.floor = $floor";
+    $where .= " AND r.floor = ?";
+    $params[] = $floor;
+    $types .= 'i';
 }
-if (!empty($_GET['status'])) {
-    $status = sanitize($_GET['status']);
-    $where .= " AND r.status = '$status'";
+if (!empty($_GET['status']) && in_array($_GET['status'], ['available', 'rented'])) {
+    $status = $_GET['status'];
+    $where .= " AND r.status = ?";
+    $params[] = $status;
+    $types .= 's';
 }
 
 // 获取房间列表
-$rooms = $conn->query("SELECT r.*, rt.name as type_name, rt.price as type_price 
-                       FROM rooms r 
-                       LEFT JOIN room_types rt ON r.room_type_id = rt.id 
-                       WHERE $where
-                       ORDER BY r.floor, r.room_number");
+$sql = "SELECT r.*, rt.name as type_name, rt.price as type_price 
+        FROM rooms r 
+        LEFT JOIN room_types rt ON r.room_type_id = rt.id 
+        WHERE $where
+        ORDER BY r.floor, r.room_number";
+
+$stmt = $conn->prepare($sql);
+if ($stmt && !empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+if ($stmt) {
+    $stmt->execute();
+    $rooms = $stmt->get_result();
+    $stmt->close();
+} else {
+    $rooms = $conn->query($sql);
+}
 
 // 编辑时获取房间信息
 $editRoom = null;
 if ($action == 'edit' && $id) {
-    $result = $conn->query("SELECT * FROM rooms WHERE id = $id");
-    $editRoom = $result->fetch_assoc();
+    $stmt = $conn->prepare("SELECT * FROM rooms WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $editRoom = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -119,40 +156,36 @@ if ($action == 'edit' && $id) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>房间管理 - <?php echo $siteName; ?></title>
+    <title>房间管理 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
 </head>
 <body>
-    <!-- 顶部导航 -->
     <nav class="navbar">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
     </nav>
 
     <div class="container-fluid">
-        <!-- 手机端菜单按钮和遮罩 -->
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
         <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
             <i class="bi bi-list"></i>
         </button>
         <div class="row">
-            <!-- 侧边栏 -->
             <nav class="col-md-2 d-md-block sidebar collapse py-3">
 <?php include 'sidebar.php'; ?>
             </nav>
 
-            <!-- 主内容区 -->
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
@@ -165,12 +198,11 @@ if ($action == 'edit' && $id) {
                     </a>
                 </div>
 
-                <!-- 搜索框 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
                             <div class="col-md-3">
-                                <input type="text" name="search" class="form-control" placeholder="搜索房间号..." value="<?php echo $_GET['search'] ?? ''; ?>">
+                                <input type="text" name="search" class="form-control" placeholder="搜索房间号..." value="<?php echo h($_GET['search'] ?? ''); ?>">
                             </div>
                             <div class="col-md-2">
                                 <select name="floor" class="form-select">
@@ -203,7 +235,7 @@ if ($action == 'edit' && $id) {
                     <div class="col-lg-4 col-md-6 mb-4">
                         <div class="card h-100 shadow-sm">
                             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-door-open"></i> <?php echo $room['room_number']; ?></h5>
+                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-door-open"></i> <?php echo h($room['room_number']); ?></h5>
                                 <span class="badge <?php echo $room['status'] == 'available' ? 'bg-dark' : 'bg-secondary'; ?>">
                                     <?php echo $room['status'] == 'available' ? '可租' : '已租'; ?>
                                 </span>
@@ -211,7 +243,7 @@ if ($action == 'edit' && $id) {
                             <div class="card-body">
                                 <ul class="list-unstyled mb-0">
                                     <li class="mb-1"><i class="bi bi-layers"></i> <strong>楼层：</strong><?php echo $room['floor']; ?>楼</li>
-                                    <li class="mb-1"><i class="bi bi-tag"></i> <strong>类型：</strong><?php echo $room['type_name']; ?></li>
+                                    <li class="mb-1"><i class="bi bi-tag"></i> <strong>类型：</strong><?php echo h($room['type_name']); ?></li>
                                     <li class="mb-1"><i class="bi bi-cash"></i> <strong>月租：</strong>¥<?php echo number_format($room['type_price'], 2); ?></li>
                                 </ul>
                             </div>
@@ -219,6 +251,7 @@ if ($action == 'edit' && $id) {
                                 <a href="rooms.php?action=view&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-eye"></i> 详情</a>
                                 <a href="rooms.php?action=edit&id=<?php echo $room['id']; ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i> 编辑</a>
                                 <form method="POST" style="display:inline;" data-confirm="确定要删除这个房间吗？">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?php echo $room['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> 删除</button>
@@ -228,44 +261,60 @@ if ($action == 'edit' && $id) {
                     </div>
                     <?php endwhile; ?>
                 </div>
-                            </table>
-                        </div>
-                    </div>
-                </div>
 
                 <?php elseif ($action == 'view' && $id): 
-                    $viewRoom = $conn->query("SELECT r.*, rt.name as type_name, rt.price as type_price, rt.area, rt.description as type_desc
+                    $stmt = $conn->prepare("SELECT r.*, rt.name as type_name, rt.price as type_price, rt.area, rt.description as type_desc
                         FROM rooms r LEFT JOIN room_types rt ON r.room_type_id = rt.id 
-                        WHERE r.id = $id")->fetch_assoc();
+                        WHERE r.id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param("i", $id);
+                        $stmt->execute();
+                        $viewRoom = $stmt->get_result()->fetch_assoc();
+                        $stmt->close();
+                    }
                     
-                    // 获取当前租客和合同信息
-                    $tenantInfo = $conn->query("SELECT c.*, t.name as tenant_name, t.phone as tenant_phone, t.id_card as tenant_idcard, t.gender as tenant_gender, t.company as tenant_company
+                    $stmt = $conn->prepare("SELECT c.*, t.name as tenant_name, t.phone as tenant_phone, t.id_card as tenant_idcard, t.gender as tenant_gender, t.company as tenant_company
                         FROM contracts c
                         JOIN tenants t ON c.tenant_id = t.id
-                        WHERE c.room_id = $id AND c.status = 'active'
-                        LIMIT 1")->fetch_assoc();
+                        WHERE c.room_id = ? AND c.status = 'active'
+                        LIMIT 1");
+                    if ($stmt) {
+                        $stmt->bind_param("i", $id);
+                        $stmt->execute();
+                        $tenantInfo = $stmt->get_result()->fetch_assoc();
+                        $stmt->close();
+                    }
                     
-                    // 获取历史账单
-                    $roomBills = $conn->query("SELECT b.*, t.name as tenant_name
+                    $stmt = $conn->prepare("SELECT b.*, t.name as tenant_name
                         FROM bills b
                         JOIN contracts c ON b.contract_id = c.id
                         JOIN tenants t ON c.tenant_id = t.id
-                        WHERE c.room_id = $id
+                        WHERE c.room_id = ?
                         ORDER BY b.bill_month DESC
                         LIMIT 5");
+                    if ($stmt) {
+                        $stmt->bind_param("i", $id);
+                        $stmt->execute();
+                        $roomBills = $stmt->get_result();
+                        $stmt->close();
+                    }
                     
-                    // 获取房间照片
-                    $roomPhotos = $conn->query("SELECT * FROM room_photos WHERE room_id = $id ORDER BY sort_order, id");
+                    $stmt = $conn->prepare("SELECT * FROM room_photos WHERE room_id = ? ORDER BY sort_order, id");
+                    if ($stmt) {
+                        $stmt->bind_param("i", $id);
+                        $stmt->execute();
+                        $roomPhotos = $stmt->get_result();
+                        $stmt->close();
+                    }
                 ?>
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="mb-0"><i class="bi bi-eye"></i> 房间详情 - <?php echo $viewRoom['floor']; ?>楼 <?php echo $viewRoom['room_number']; ?></h4>
+                    <h4 class="mb-0"><i class="bi bi-eye"></i> 房间详情 - <?php echo $viewRoom['floor']; ?>楼 <?php echo h($viewRoom['room_number']); ?></h4>
                     <a href="rooms.php" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> 返回列表
                     </a>
                 </div>
 
                 <div class="row">
-                    <!-- 基本信息 -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-dark text-white">
@@ -273,20 +322,19 @@ if ($action == 'edit' && $id) {
                             </div>
                             <div class="card-body">
                                 <table class="table table-borderless mb-0">
-                                    <tr><td style="width:120px; color:#666;">房间号</td><td><strong><?php echo $viewRoom['floor']; ?>楼 <?php echo $viewRoom['room_number']; ?></strong></td></tr>
-                                    <tr><td style="color:#666;">房间类型</td><td><?php echo $viewRoom['type_name']; ?></td></tr>
+                                    <tr><td style="width:120px; color:#666;">房间号</td><td><strong><?php echo $viewRoom['floor']; ?>楼 <?php echo h($viewRoom['room_number']); ?></strong></td></tr>
+                                    <tr><td style="color:#666;">房间类型</td><td><?php echo h($viewRoom['type_name']); ?></td></tr>
                                     <tr><td style="color:#666;">面积</td><td><?php echo $viewRoom['area']; ?>㎡</td></tr>
                                     <tr><td style="color:#666;">月租金</td><td class="text-dark fw-bold">¥<?php echo number_format($viewRoom['type_price'], 2); ?></td></tr>
                                     <tr><td style="color:#666;">状态</td><td><span class="badge <?php echo $viewRoom['status'] == 'available' ? 'badge-available' : 'badge-rented'; ?>"><?php echo $viewRoom['status'] == 'available' ? '可租' : '已租'; ?></span></td></tr>
                                     <?php if ($viewRoom['description']): ?>
-                                    <tr><td style="color:#666;">备注</td><td><?php echo $viewRoom['description']; ?></td></tr>
+                                    <tr><td style="color:#666;">备注</td><td><?php echo h($viewRoom['description']); ?></td></tr>
                                     <?php endif; ?>
                                 </table>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 租客信息 -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header <?php echo $tenantInfo ? 'bg-dark' : 'bg-secondary'; ?> text-white">
@@ -295,11 +343,11 @@ if ($action == 'edit' && $id) {
                             <div class="card-body">
                                 <?php if ($tenantInfo): ?>
                                 <table class="table table-borderless mb-0">
-                                    <tr><td style="width:100px; color:#666;">姓名</td><td><strong><?php echo $tenantInfo['tenant_name']; ?></strong></td></tr>
-                                    <tr><td style="color:#666;">电话</td><td><a href="tel:<?php echo $tenantInfo['tenant_phone']; ?>"><?php echo $tenantInfo['tenant_phone']; ?></a></td></tr>
-                                    <tr><td style="color:#666;">性别</td><td><?php echo $tenantInfo['tenant_gender'] ?: '-'; ?></td></tr>
-                                    <tr><td style="color:#666;">身份证</td><td><?php echo $tenantInfo['tenant_idcard'] ?: '-'; ?></td></tr>
-                                    <tr><td style="color:#666;">公司/单位</td><td><?php echo $tenantInfo['tenant_company'] ?: '-'; ?></td></tr>
+                                    <tr><td style="width:100px; color:#666;">姓名</td><td><strong><?php echo h($tenantInfo['tenant_name']); ?></strong></td></tr>
+                                    <tr><td style="color:#666;">电话</td><td><a href="tel:<?php echo h($tenantInfo['tenant_phone']); ?>"><?php echo h($tenantInfo['tenant_phone']); ?></a></td></tr>
+                                    <tr><td style="color:#666;">性别</td><td><?php echo h($tenantInfo['tenant_gender'] ?: '-'); ?></td></tr>
+                                    <tr><td style="color:#666;">身份证</td><td><?php echo h($tenantInfo['tenant_idcard'] ?: '-'); ?></td></tr>
+                                    <tr><td style="color:#666;">公司/单位</td><td><?php echo h($tenantInfo['tenant_company'] ?: '-'); ?></td></tr>
                                     <tr><td style="color:#666;">入住日期</td><td><?php echo $tenantInfo['start_date']; ?></td></tr>
                                     <tr><td style="color:#666;">月租金</td><td class="text-dark fw-bold">¥<?php echo number_format($tenantInfo['monthly_rent'], 2); ?></td></tr>
                                     <tr><td style="color:#666;">押金</td><td>¥<?php echo number_format($tenantInfo['deposit'], 2); ?></td></tr>
@@ -312,7 +360,6 @@ if ($action == 'edit' && $id) {
                     </div>
                 </div>
 
-                <!-- 房间照片 -->
                 <?php if ($roomPhotos && $roomPhotos->num_rows > 0): ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header"><h5 class="mb-0"><i class="bi bi-camera"></i> 房间照片</h5></div>
@@ -320,8 +367,8 @@ if ($action == 'edit' && $id) {
                         <div class="row">
                             <?php while ($photo = $roomPhotos->fetch_assoc()): ?>
                             <div class="col-md-3 mb-3">
-                                <img src="../<?php echo $photo['photo_path']; ?>" class="img-fluid rounded" style="height:150px; width:100%; object-fit:cover;">
-                                <small class="text-muted"><?php echo $photo['photo_type']; ?></small>
+                                <img src="../<?php echo h($photo['photo_path']); ?>" class="img-fluid rounded" style="height:150px; width:100%; object-fit:cover;">
+                                <small class="text-muted"><?php echo h($photo['photo_type']); ?></small>
                             </div>
                             <?php endwhile; ?>
                         </div>
@@ -329,7 +376,6 @@ if ($action == 'edit' && $id) {
                 </div>
                 <?php endif; ?>
 
-                <!-- 最近账单 -->
                 <?php if ($roomBills && $roomBills->num_rows > 0): ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header"><h5 class="mb-0"><i class="bi bi-receipt"></i> 最近账单</h5></div>
@@ -342,7 +388,7 @@ if ($action == 'edit' && $id) {
                                 <tbody>
                                     <?php while ($bill = $roomBills->fetch_assoc()): ?>
                                     <tr>
-                                        <td><?php echo $bill['bill_month']; ?></td>
+                                        <td><?php echo h($bill['bill_month']); ?></td>
                                         <td>¥<?php echo number_format($bill['water_amount'], 2); ?></td>
                                         <td>¥<?php echo number_format($bill['elec_amount'], 2); ?></td>
                                         <td>¥<?php echo number_format($bill['rent_amount'], 2); ?></td>
@@ -368,7 +414,8 @@ if ($action == 'edit' && $id) {
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST">
-                            <input type="hidden" name="action" value="<?php echo $action; ?>">
+                            <?php echo csrfField(); ?>
+                            <input type="hidden" name="action" value="<?php echo h($action); ?>">
                             <?php if ($action == 'edit'): ?>
                                 <input type="hidden" name="id" value="<?php echo $editRoom['id']; ?>">
                             <?php endif; ?>
@@ -387,8 +434,8 @@ if ($action == 'edit' && $id) {
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">房间号</label>
-                                    <input type="text" name="room_number" class="form-control" required
-                                           value="<?php echo $action == 'edit' ? $editRoom['room_number'] : ''; ?>"
+                                    <input type="text" name="room_number" class="form-control" required maxlength="10"
+                                           value="<?php echo $action == 'edit' ? h($editRoom['room_number']) : ''; ?>"
                                            placeholder="如: 201, 202">
                                 </div>
                             </div>
@@ -401,7 +448,7 @@ if ($action == 'edit' && $id) {
                                         <?php while ($type = $roomTypes->fetch_assoc()): ?>
                                         <option value="<?php echo $type['id']; ?>" 
                                                 <?php echo ($action == 'edit' && $editRoom['room_type_id'] == $type['id']) ? 'selected' : ''; ?>>
-                                            <?php echo $type['name']; ?> - ¥<?php echo number_format($type['price'], 2); ?>/月
+                                            <?php echo h($type['name']); ?> - ¥<?php echo number_format($type['price'], 2); ?>/月
                                         </option>
                                         <?php endwhile; ?>
                                     </select>
@@ -417,7 +464,7 @@ if ($action == 'edit' && $id) {
                             
                             <div class="mb-3">
                                 <label class="form-label">描述（可选）</label>
-                                <textarea name="description" class="form-control" rows="3"><?php echo $action == 'edit' ? $editRoom['description'] : ''; ?></textarea>
+                                <textarea name="description" class="form-control" rows="3" maxlength="500"><?php echo $action == 'edit' ? h($editRoom['description']) : ''; ?></textarea>
                             </div>
                             
                             <div class="d-flex gap-2">

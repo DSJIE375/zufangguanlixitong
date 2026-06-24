@@ -15,14 +15,31 @@ function getSiteName() {
 }
 $siteName = getSiteName();
 
-// 搜索
 $where = "1=1";
+$params = [];
+$types = '';
+
 if (!empty($_GET['search'])) {
-    $search = sanitize($_GET['search']);
-    $where .= " AND (room_number LIKE '%$search%' OR tenant_name LIKE '%$search%' OR tenant_phone LIKE '%$search%')";
+    $search = '%' . trim($_GET['search']) . '%';
+    $where .= " AND (room_number LIKE ? OR tenant_name LIKE ? OR tenant_phone LIKE ?)";
+    $params[] = $search;
+    $params[] = $search;
+    $params[] = $search;
+    $types .= 'sss';
 }
 
-$history = $conn->query("SELECT * FROM bill_history WHERE $where ORDER BY archived_at DESC");
+$sql = "SELECT * FROM bill_history WHERE $where ORDER BY archived_at DESC";
+$stmt = $conn->prepare($sql);
+if ($stmt && !empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+if ($stmt) {
+    $stmt->execute();
+    $history = $stmt->get_result();
+    $stmt->close();
+} else {
+    $history = $conn->query($sql);
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -30,7 +47,7 @@ $history = $conn->query("SELECT * FROM bill_history WHERE $where ORDER BY archiv
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <title>历史账单 - <?php echo $siteName; ?></title>
+    <title>历史账单 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -40,7 +57,7 @@ $history = $conn->query("SELECT * FROM bill_history WHERE $where ORDER BY archiv
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
@@ -54,20 +71,19 @@ $history = $conn->query("SELECT * FROM bill_history WHERE $where ORDER BY archiv
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
 
                 <h4 class="mb-4"><i class="bi bi-clock-history"></i> 历史账单</h4>
 
-                <!-- 搜索 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
                             <div class="col-md-6">
-                                <input type="text" name="search" class="form-control" placeholder="搜索房间号、租客姓名或电话..." value="<?php echo $_GET['search'] ?? ''; ?>">
+                                <input type="text" name="search" class="form-control" placeholder="搜索房间号、租客姓名或电话..." value="<?php echo h($_GET['search'] ?? ''); ?>">
                             </div>
                             <div class="col-md-4">
                                 <button type="submit" class="btn btn-dark me-2"><i class="bi bi-search"></i> 搜索</button>
@@ -77,27 +93,26 @@ $history = $conn->query("SELECT * FROM bill_history WHERE $where ORDER BY archiv
                     </div>
                 </div>
 
-                <!-- 账单列表 -->
                 <?php if ($history && $history->num_rows > 0): ?>
                 <div class="row">
                     <?php $idx = 1; while ($bill = $history->fetch_assoc()): ?>
                     <div class="col-lg-4 col-md-6 mb-4">
                         <div class="card h-100 shadow-sm">
                             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-clock-history"></i> <?php echo $bill['room_number']; ?></h5>
+                                <h5 class="mb-0"><small class="text-white-50">#<?php echo $idx++; ?></small> <i class="bi bi-clock-history"></i> <?php echo h($bill['room_number']); ?></h5>
                                 <span class="badge bg-white text-<?php echo $bill['status'] == 'paid' ? 'success' : 'danger'; ?>"><?php echo $bill['status'] == 'paid' ? '已缴' : '未缴'; ?></span>
                             </div>
                             <div class="card-body">
                                 <div class="text-center mb-3">
-                                    <small class="text-muted"><?php echo $bill['bill_month']; ?></small>
-                                    <div class="text-muted small"><?php echo $bill['tenant_name']; ?></div>
+                                    <small class="text-muted"><?php echo h($bill['bill_month']); ?></small>
+                                    <div class="text-muted small"><?php echo h($bill['tenant_name']); ?></div>
                                 </div>
                                 <ul class="list-unstyled mb-0">
                                     <li class="mb-1"><i class="bi bi-droplet"></i> <strong>水费：</strong>¥<?php echo number_format($bill['water_amount'], 2); ?></li>
                                     <li class="mb-1"><i class="bi bi-lightning"></i> <strong>电费：</strong>¥<?php echo number_format($bill['elec_amount'], 2); ?></li>
                                     <li class="mb-1"><i class="bi bi-trash"></i> <strong>垃圾费：</strong>¥<?php echo number_format($bill['garbage_fee'], 2); ?></li>
                                     <?php if ($bill['other_fee'] > 0): ?>
-                                    <li class="mb-1"><i class="bi bi-plus-circle"></i> <strong><?php echo $bill['other_fee_desc'] ?: '其他'; ?>：</strong>¥<?php echo number_format($bill['other_fee'], 2); ?></li>
+                                    <li class="mb-1"><i class="bi bi-plus-circle"></i> <strong><?php echo h($bill['other_fee_desc'] ?: '其他'); ?>：</strong>¥<?php echo number_format($bill['other_fee'], 2); ?></li>
                                     <?php endif; ?>
                                     <li class="mb-1"><i class="bi bi-house"></i> <strong>房租：</strong>¥<?php echo number_format($bill['rent_amount'], 2); ?></li>
                                     <li class="pt-2 border-top"><strong>合计：</strong><span class="fw-bold fs-5">¥<?php echo number_format($bill['total_amount'], 2); ?></span></li>

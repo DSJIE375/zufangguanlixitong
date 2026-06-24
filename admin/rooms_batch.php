@@ -15,103 +15,133 @@ function getSiteName() {
 }
 $siteName = getSiteName();
 
-// 批量添加
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'batch_add') {
-    $start_floor = intval($_POST['start_floor']);
-    $end_floor = intval($_POST['end_floor']);
-    $start_room = intval($_POST['start_room']);
-    $end_room = intval($_POST['end_room']);
-    $room_type_id = intval($_POST['room_type_id']);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    requireCSRF();
+    $postAction = $_POST['action'] ?? '';
     
-    $added = 0;
-    $skipped = 0;
-    
-    for ($floor = $start_floor; $floor <= $end_floor; $floor++) {
-        for ($room = $start_room; $room <= $end_room; $room++) {
-            $room_number = $floor . str_pad($room, 2, '0', STR_PAD_LEFT);
-            
-            // 跳过含4的房间号
-            if (strpos($room_number, '4') !== false) {
-                $skipped++;
-                continue;
-            }
-            
-            // 检查房间是否已存在
-            $check = $conn->query("SELECT id FROM rooms WHERE room_number = '$room_number'");
-            if ($check->num_rows > 0) {
-                $skipped++;
-                continue;
-            }
-            
-            $sql = "INSERT INTO rooms (floor, room_number, room_type_id, status) VALUES ($floor, '$room_number', $room_type_id, 'available')";
-            if ($conn->query($sql)) {
-                $added++;
-                logAction('批量添加房间', "添加房间 $room_number ({$floor}楼)");
+    if ($postAction == 'batch_add') {
+        $start_floor = intval($_POST['start_floor']);
+        $end_floor = intval($_POST['end_floor']);
+        $start_room = intval($_POST['start_room']);
+        $end_room = intval($_POST['end_room']);
+        $room_type_id = intval($_POST['room_type_id']);
+        
+        $added = 0;
+        $skipped = 0;
+        
+        for ($floor = $start_floor; $floor <= $end_floor; $floor++) {
+            for ($room = $start_room; $room <= $end_room; $room++) {
+                $room_number = $floor . str_pad($room, 2, '0', STR_PAD_LEFT);
+                
+                if (strpos($room_number, '4') !== false) {
+                    $skipped++;
+                    continue;
+                }
+                
+                $stmt = $conn->prepare("SELECT id FROM rooms WHERE room_number = ?");
+                if ($stmt) {
+                    $stmt->bind_param("s", $room_number);
+                    $stmt->execute();
+                    $check = $stmt->get_result();
+                    $stmt->close();
+                    
+                    if ($check->num_rows > 0) {
+                        $skipped++;
+                        continue;
+                    }
+                }
+                
+                $stmt = $conn->prepare("INSERT INTO rooms (floor, room_number, room_type_id, status) VALUES (?, ?, ?, 'available')");
+                if ($stmt) {
+                    $stmt->bind_param("isi", $floor, $room_number, $room_type_id);
+                    if ($stmt->execute()) {
+                        $added++;
+                        logAction('批量添加房间', "添加房间 $room_number ({$floor}楼)");
+                    }
+                    $stmt->close();
+                }
             }
         }
+        
+        setFlash('success', "批量添加完成：成功 $added 个，跳过 $skipped 个");
+        redirect('rooms_batch.php');
     }
     
-    setFlash('success', "批量添加完成：成功 $added 个，跳过 $skipped 个");
-    redirect('rooms_batch.php');
-}
-
-// 批量删除
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'batch_delete') {
-    $room_ids = $_POST['room_ids'] ?? [];
-    
-    if (!empty($room_ids)) {
-        $ids = implode(',', array_map('intval', $room_ids));
+    if ($postAction == 'batch_delete') {
+        $room_ids = $_POST['room_ids'] ?? [];
         
-        // 获取房间信息用于日志
-        $rooms_info = $conn->query("SELECT room_number FROM rooms WHERE id IN ($ids)");
-        $room_names = [];
-        while ($row = $rooms_info->fetch_assoc()) {
-            $room_names[] = $row['room_number'];
-        }
-        
-        $sql = "DELETE FROM rooms WHERE id IN ($ids) AND status = 'available'";
-        $conn->query($sql);
-        
-        logAction('批量删除房间', "批量删除房间: " . implode(', ', $room_names));
-        setFlash('success', "已删除 " . count($room_ids) . " 个房间");
-    } else {
-        setFlash('error', '请选择要删除的房间');
-    }
-    redirect('rooms_batch.php');
-}
-
-// 批量修改
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'batch_modify') {
-    $modify_ids = $_POST['modify_ids'] ?? [];
-    $new_type_id = $_POST['new_type_id'] ?? '';
-    $new_status = $_POST['new_status'] ?? '';
-    
-    if (!empty($modify_ids)) {
-        $ids = implode(',', array_map('intval', $modify_ids));
-        $updates = [];
-        
-        if ($new_type_id) {
-            $conn->query("UPDATE rooms SET room_type_id = $new_type_id WHERE id IN ($ids)");
-            $updates[] = "房型";
-        }
-        if ($new_status) {
-            $conn->query("UPDATE rooms SET status = '$new_status' WHERE id IN ($ids)");
-            $updates[] = "状态";
-        }
-        
-        if (!empty($updates)) {
-            logAction('批量修改房间', "批量修改房间: 修改了 " . implode('+', $updates) . "，共 " . count($modify_ids) . " 个房间");
-            setFlash('success', "已修改 " . count($modify_ids) . " 个房间的" . implode('和', $updates));
+        if (!empty($room_ids)) {
+            $ids = implode(',', array_map('intval', $room_ids));
+            
+            $stmt = $conn->prepare("SELECT room_number FROM rooms WHERE id IN ($ids)");
+            if ($stmt) {
+                $stmt->execute();
+                $rooms_info = $stmt->get_result();
+                $stmt->close();
+            }
+            
+            $room_names = [];
+            if ($rooms_info) {
+                while ($row = $rooms_info->fetch_assoc()) {
+                    $room_names[] = $row['room_number'];
+                }
+            }
+            
+            $stmt = $conn->prepare("DELETE FROM rooms WHERE id IN ($ids) AND status = 'available'");
+            if ($stmt) {
+                $stmt->execute();
+                $stmt->close();
+            }
+            
+            logAction('批量删除房间', "批量删除房间: " . implode(', ', $room_names));
+            setFlash('success', "已删除 " . count($room_ids) . " 个房间");
         } else {
-            setFlash('error', '请选择要修改的类型或状态');
+            setFlash('error', '请选择要删除的房间');
         }
-    } else {
-        setFlash('error', '请选择要修改的房间');
+        redirect('rooms_batch.php');
     }
-    redirect('rooms_batch.php');
+    
+    if ($postAction == 'batch_modify') {
+        $modify_ids = $_POST['modify_ids'] ?? [];
+        $new_type_id = intval($_POST['new_type_id'] ?? 0);
+        $new_status = $_POST['new_status'] ?? '';
+        
+        if (!empty($modify_ids)) {
+            $ids = implode(',', array_map('intval', $modify_ids));
+            $updates = [];
+            
+            if ($new_type_id) {
+                $stmt = $conn->prepare("UPDATE rooms SET room_type_id = ? WHERE id IN ($ids)");
+                if ($stmt) {
+                    $stmt->bind_param("i", $new_type_id);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+                $updates[] = "房型";
+            }
+            if ($new_status && in_array($new_status, ['available', 'rented'])) {
+                $stmt = $conn->prepare("UPDATE rooms SET status = ? WHERE id IN ($ids)");
+                if ($stmt) {
+                    $stmt->bind_param("s", $new_status);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+                $updates[] = "状态";
+            }
+            
+            if (!empty($updates)) {
+                logAction('批量修改房间', "批量修改房间: 修改了 " . implode('+', $updates) . "，共 " . count($modify_ids) . " 个房间");
+                setFlash('success', "已修改 " . count($modify_ids) . " 个房间的" . implode('和', $updates));
+            } else {
+                setFlash('error', '请选择要修改的类型或状态');
+            }
+        } else {
+            setFlash('error', '请选择要修改的房间');
+        }
+        redirect('rooms_batch.php');
+    }
 }
 
-// 获取数据
 $rooms = $conn->query("SELECT r.*, rt.name as type_name FROM rooms r LEFT JOIN room_types rt ON r.room_type_id = rt.id ORDER BY r.floor, r.room_number");
 $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
 ?>
@@ -121,7 +151,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <title>批量管理房间 - <?php echo $siteName; ?></title>
+    <title>批量管理房间 - <?php echo h($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../css/style.css" rel="stylesheet">
@@ -131,7 +161,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><img src="../images/logo.svg" alt="Logo" height="28"></a>
             <div class="d-flex align-items-center">
-                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo $_SESSION['realname']; ?></span>
+                <span class="me-3" style="color: var(--text-muted);"><i class="bi bi-person-circle"></i> <?php echo h($_SESSION['realname']); ?></span>
                 <a href="logout.php" class="btn btn-outline-dark btn-sm">退出</a>
             </div>
         </div>
@@ -145,15 +175,14 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
             </nav>
             <main class="col-md-10 ms-sm-auto main-content">
                 <?php $flash = getFlash(); if ($flash): ?>
-                    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                        <?php echo $flash['message']; ?>
+                    <div class="alert alert-<?php echo h($flash['type']); ?> alert-dismissible fade show">
+                        <?php echo h($flash['message']); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
 
                 <h4 class="mb-4"><i class="bi bi-grid"></i> 批量管理房间</h4>
 
-                <!-- 当前房间列表 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">当前房间列表（共 <?php echo $rooms->num_rows; ?> 个）</h5>
@@ -165,8 +194,8 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                             while ($room = $rooms->fetch_assoc()): ?>
                             <div class="col-md-3 col-6 mb-2">
                                 <span class="badge <?php echo $room['status'] == 'available' ? 'bg-dark' : 'bg-secondary'; ?>" style="padding: 8px 12px; font-size: 0.85rem;">
-                                    <?php echo $room['floor']; ?>楼 <?php echo $room['room_number']; ?>
-                                    <small>(<?php echo $room['type_name']; ?>)</small>
+                                    <?php echo $room['floor']; ?>楼 <?php echo h($room['room_number']); ?>
+                                    <small>(<?php echo h($room['type_name']); ?>)</small>
                                 </span>
                             </div>
                             <?php endwhile; ?>
@@ -175,7 +204,6 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                 </div>
 
                 <div class="row">
-                    <!-- 批量添加 -->
                     <div class="col-lg-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-dark text-white">
@@ -184,6 +212,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                             <div class="card-body">
                                 <p class="text-muted mb-3">快速添加多个房间，自动跳过含4的房间号</p>
                                 <form method="POST">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="batch_add">
                                     <div class="row">
                                         <div class="col-6 mb-3">
@@ -209,7 +238,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                                         <label class="form-label">房间类型</label>
                                         <select name="room_type_id" class="form-select" required>
                                             <?php while ($type = $roomTypes->fetch_assoc()): ?>
-                                            <option value="<?php echo $type['id']; ?>"><?php echo $type['name']; ?> (¥<?php echo $type['price']; ?>/月)</option>
+                                            <option value="<?php echo $type['id']; ?>"><?php echo h($type['name']); ?> (¥<?php echo $type['price']; ?>/月)</option>
                                             <?php endwhile; ?>
                                         </select>
                                     </div>
@@ -222,7 +251,6 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                         </div>
                     </div>
 
-                    <!-- 批量删除 -->
                     <div class="col-lg-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-dark text-white">
@@ -231,6 +259,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                             <div class="card-body">
                                 <p class="text-muted mb-3">选择要删除的房间（只能删除可租状态的房间）</p>
                                 <form method="POST" onsubmit="return confirm('确定要删除选中的房间吗？')">
+                                    <?php echo csrfField(); ?>
                                     <input type="hidden" name="action" value="batch_delete">
                                     <div class="mb-3">
                                         <button type="button" class="btn btn-sm btn-outline-dark" onclick="toggleAll()">全选/取消</button>
@@ -243,8 +272,8 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                                         <div class="form-check mb-2">
                                             <input class="form-check-input" type="checkbox" name="room_ids[]" value="<?php echo $room['id']; ?>" <?php echo $room['status'] == 'rented' ? 'disabled' : ''; ?>>
                                             <label class="form-check-label">
-                                                <?php echo $room['floor']; ?>楼 <?php echo $room['room_number']; ?>
-                                                <small class="text-muted">(<?php echo $room['type_name']; ?>)</small>
+                                                <?php echo $room['floor']; ?>楼 <?php echo h($room['room_number']); ?>
+                                                <small class="text-muted">(<?php echo h($room['type_name']); ?>)</small>
                                                 <?php if ($room['status'] == 'rented'): ?>
                                                 <span class="badge bg-secondary ms-1">已租</span>
                                                 <?php endif; ?>
@@ -261,7 +290,6 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                     </div>
                 </div>
 
-                <!-- 批量修改 -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-dark text-white">
                         <h5 class="mb-0"><i class="bi bi-pencil"></i> 批量修改房间</h5>
@@ -269,6 +297,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                     <div class="card-body">
                         <p class="text-muted mb-3">选择要修改的房间，批量修改房型或状态</p>
                         <form method="POST" onsubmit="return confirm('确定要修改选中的房间吗？')">
+                            <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="batch_modify">
                             <div class="mb-3">
                                 <button type="button" class="btn btn-sm btn-outline-dark" onclick="toggleAllModify()">全选/取消</button>
@@ -281,8 +310,8 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" name="modify_ids[]" value="<?php echo $room['id']; ?>">
                                     <label class="form-check-label">
-                                        <?php echo $room['floor']; ?>楼 <?php echo $room['room_number']; ?>
-                                        <small class="text-muted">(<?php echo $room['type_name']; ?>)</small>
+                                        <?php echo $room['floor']; ?>楼 <?php echo h($room['room_number']); ?>
+                                        <small class="text-muted">(<?php echo h($room['type_name']); ?>)</small>
                                     </label>
                                 </div>
                                 <?php endwhile; ?>
@@ -295,7 +324,7 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
                                         <?php 
                                         $roomTypes->data_seek(0);
                                         while ($type = $roomTypes->fetch_assoc()): ?>
-                                        <option value="<?php echo $type['id']; ?>"><?php echo $type['name']; ?> (¥<?php echo $type['price']; ?>/月)</option>
+                                        <option value="<?php echo $type['id']; ?>"><?php echo h($type['name']); ?> (¥<?php echo $type['price']; ?>/月)</option>
                                         <?php endwhile; ?>
                                     </select>
                                 </div>
@@ -320,7 +349,6 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
     <?php include 'footer.php'; ?>
     
     <script>
-    // 实时预览添加数量
     document.querySelectorAll('input[name="start_floor"], input[name="end_floor"], input[name="start_room"], input[name="end_room"]').forEach(function(el) {
         el.addEventListener('change', previewCount);
         el.addEventListener('input', previewCount);
@@ -346,48 +374,38 @@ $roomTypes = $conn->query("SELECT * FROM room_types ORDER BY price");
     }
     previewCount();
     
-    // 一键全选/取消
     function toggleAll() {
         var checkboxes = document.querySelectorAll('input[name="room_ids[]"]');
         var allChecked = Array.from(checkboxes).every(cb => cb.checked || cb.disabled);
-        
         checkboxes.forEach(function(cb) {
-            if (!cb.disabled) {
-                cb.checked = !allChecked;
-            }
+            if (!cb.disabled) cb.checked = !allChecked;
         });
         updateSelectedCount();
     }
     
-    // 更新已选数量
     function updateSelectedCount() {
         var checked = document.querySelectorAll('input[name="room_ids[]"]:checked').length;
         document.getElementById('selected-count').textContent = '已选 ' + checked + ' 个';
     }
     
-    // 监听复选框变化
     document.querySelectorAll('input[name="room_ids[]"]').forEach(function(cb) {
         cb.addEventListener('change', updateSelectedCount);
     });
     
-    // 批量修改：一键全选/取消
     function toggleAllModify() {
         var checkboxes = document.querySelectorAll('input[name="modify_ids[]"]');
         var allChecked = Array.from(checkboxes).every(cb => cb.checked);
-        
         checkboxes.forEach(function(cb) {
             cb.checked = !allChecked;
         });
         updateModifySelectedCount();
     }
     
-    // 批量修改：更新已选数量
     function updateModifySelectedCount() {
         var checked = document.querySelectorAll('input[name="modify_ids[]"]:checked').length;
         document.getElementById('modify-selected-count').textContent = '已选 ' + checked + ' 个';
     }
     
-    // 监听批量修改复选框变化
     document.querySelectorAll('input[name="modify_ids[]"]').forEach(function(cb) {
         cb.addEventListener('change', updateModifySelectedCount);
     });

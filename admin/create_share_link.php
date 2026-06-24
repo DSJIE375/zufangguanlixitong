@@ -20,15 +20,20 @@ if (!$bill_id) {
 $token = bin2hex(random_bytes(16));
 
 if ($expire_type == 'permanent') {
-    $expire_at = 'NULL';
+    $stmt = $conn->prepare("INSERT INTO share_links (bill_id, token, expire_at) VALUES (?, ?, NULL)");
+    if ($stmt) {
+        $stmt->bind_param("is", $bill_id, $token);
+        $stmt->execute();
+        $stmt->close();
+    }
 } else {
-    $expire_at = "'" . date('Y-m-d H:i:s', strtotime("+{$expire_hours} hours")) . "'";
+    $expireAt = date('Y-m-d H:i:s', strtotime("+{$expire_hours} hours"));
+    $stmt = $conn->prepare("INSERT INTO share_links (bill_id, token, expire_at) VALUES (?, ?, ?)");
+    if ($stmt) {
+        $stmt->bind_param("iss", $bill_id, $token, $expireAt);
+        $stmt->execute();
+        $stmt->close();
+    }
 }
 
-$sql = "INSERT INTO share_links (bill_id, token, expire_at) VALUES ($bill_id, '$token', $expire_at)";
-
-if ($conn->query($sql)) {
-    echo json_encode(['success' => true, 'token' => $token]);
-} else {
-    echo json_encode(['success' => false, 'error' => '创建失败']);
-}
+echo json_encode(['success' => true, 'token' => $token]);
